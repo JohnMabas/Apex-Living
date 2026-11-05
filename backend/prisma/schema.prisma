@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+// ---------------------------------------------------------------------------
+// User — Phase 3 (Authentication)
+// ---------------------------------------------------------------------------
+
+model User {
+  id         String   @id @default(cuid())
+  fullName   String
+  email      String?  @unique
+  phone      String?  @unique
+  passwordHash String
+
+  role              Role    @default(CUSTOMER)
+  isEmailVerified   Boolean @default(false)
+  isPhoneVerified   Boolean @default(false)
+
+  // Password-reset fields (secure, single-use, time-limited)
+  passwordResetToken   String?
+  passwordResetExpires DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}

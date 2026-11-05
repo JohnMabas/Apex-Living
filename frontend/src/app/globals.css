@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────
+   Tailwind v4 theme — brand tokens
+───────────────────────────────────────── */
+@theme {
+  /* Brand colours */
+  --color-forest-green: #173d32;
+  --color-warm-ivory: #f4ebdd;
+  --color-soft-gold: #c69b65;
+  --color-charcoal: #252b28;
+
+  /* Fonts */
+  --font-display: var(--font-playfair), Georgia, serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────
+   Nestora brand CSS custom properties
+   Colours sourced from skills.md § 2
+───────────────────────────────────────── */
+:root {
+  /* Font variables — using system fonts; swap for Google Fonts once network is available */
+  --font-inter: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-playfair: "Playfair Display", Georgia, "Times New Roman", serif;
+  --color-forest-green: #173d32;
+  --color-warm-ivory: #f4ebdd;
+  --color-soft-gold: #c69b65;
+  --color-charcoal: #252b28;
+  --color-white: #ffffff;
+  color-scheme: light;
+}
+
+/* ─────────────────────────────────────────
+   Base reset
+───────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-warm-ivory);
+  color: var(--color-charcoal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─────────────────────────────────────────
+   Typography helpers
+───────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-playfair), Georgia, serif;
+  line-height: 1.2;
+}
+
+/* ─────────────────────────────────────────
+   Custom scrollbar
+───────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-warm-ivory);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-soft-gold);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-forest-green);
+}
+
+/* ─────────────────────────────────────────
+   Focus ring
+───────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--color-forest-green);
+  outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────
+   Smooth transitions
+───────────────────────────────────────── */
+a, button {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ─────────────────────────────────────────
+   Input base styles
+───────────────────────────────────────── */
+input, textarea, select {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────
+   Image optimisation
+───────────────────────────────────────── */
+img {
+  max-width: 100%;
+  height: auto;
+}
