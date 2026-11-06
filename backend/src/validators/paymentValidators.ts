@@ -12,6 +12,14 @@ export const initializePaymentSchema = z.object({
 });
 export type InitializePaymentInput = z.infer<typeof initializePaymentSchema>;
 
+export const initializeGuestPaymentSchema = z.object({
+  bookingId: z.string().min(1, "Booking ID is required."),
+  accessToken: z.string().min(20, "A valid booking access token is required."),
+});
+export type InitializeGuestPaymentInput = z.infer<
+  typeof initializeGuestPaymentSchema
+>;
+
 export const requestRefundSchema = z.object({
   paymentReference: z.string().min(1, "Payment reference is required."),
   reason: z.string().trim().min(10, "Please explain why you are requesting a refund.").max(1000),
