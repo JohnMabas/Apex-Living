@@ -2,6 +2,7 @@ import { BookingStatus, JobStatus } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { sendEmail, buildReminderHtml } from "./emailService.js";
+import { guestEmail, guestName } from "../utils/bookingGuest.js";
 
 // ---------------------------------------------------------------------------
 // Schedule a reminder job
@@ -102,13 +103,21 @@ async function processBookingReminder(bookingId: string): Promise<void> {
     BookingStatus.AWAITING_PAYMENT,
   ];
   if (!remindableStatuses.includes(booking.status)) return;
-  if (!booking.guest.email) return;
+
+  const recipient = guestEmail(booking);
+  if (!recipient) return;
 
   // Don't remind if already expired
   if (booking.expiresAt && booking.expiresAt < new Date()) return;
 
+  const manageUrl = booking.guestId
+    ? `${env.FRONTEND_URL}/account/bookings/${booking.id}/pay`
+    : `${env.FRONTEND_URL}/bookings/manage/${encodeURIComponent(
+        booking.bookingReference,
+      )}`;
+
   const html = buildReminderHtml({
-    guestName: booking.guest.fullName,
+    guestName: guestName(booking),
     bookingReference: booking.bookingReference,
     apartmentTitle: booking.apartment.title,
     checkIn: booking.checkIn.toISOString().split("T")[0],
@@ -116,15 +125,16 @@ async function processBookingReminder(bookingId: string): Promise<void> {
     totalAmount: Number(booking.totalAmount),
     currency: booking.currency,
     expiresAt: booking.expiresAt?.toISOString() ?? "soon",
-    payUrl: `${env.FRONTEND_URL}/account/bookings/${booking.id}/pay`,
+    payUrl: manageUrl,
   });
 
   await sendEmail({
-    to: booking.guest.email,
+    to: recipient,
     subject: `Complete your Nestora booking — ${booking.bookingReference}`,
     html,
     templateName: "booking-reminder",
-    userId: booking.guestId,
+    bookingId: booking.id,
+    userId: booking.guestId ?? undefined,
   });
 }
 

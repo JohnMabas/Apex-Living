@@ -4,8 +4,22 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { paystackInitialize, paystackVerify, validateWebhookSignature } from "./paystackService.js";
-import { sendEmail, buildReceiptHtml, buildPaymentFailedHtml } from "./emailService.js";
-import type { InitializePaymentInput } from "../validators/paymentValidators.js";
+import {
+  sendEmail,
+  buildReceiptHtml,
+  buildPaymentFailedHtml,
+  buildBookingConfirmedHtml,
+} from "./emailService.js";
+import {
+  assertBookingAccess,
+  buildBookingManagementUrl,
+} from "../utils/bookingAccessToken.js";
+import { guestEmail, guestName } from "../utils/bookingGuest.js";
+import { buildReceiptPdf } from "../utils/pdf.js";
+import type {
+  InitializePaymentInput,
+  InitializeGuestPaymentInput,
+} from "../validators/paymentValidators.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -13,6 +27,18 @@ import type { InitializePaymentInput } from "../validators/paymentValidators.js"
 
 function generatePaymentReference(): string {
   return `PAY-${randomBytes(6).toString("hex").toUpperCase()}`;
+}
+
+function paymentCallbackUrl(reference: string, accessToken?: string): string {
+  const base =
+    env.PAYSTACK_CALLBACK_URL ?? `${env.FRONTEND_URL}/payment/success`;
+  const url = new URL(base);
+  url.searchParams.set("reference", reference);
+  if (accessToken) {
+    url.searchParams.set("guest", "1");
+    url.searchParams.set("token", accessToken);
+  }
+  return url.toString();
 }
 
 function money(v: Prisma.Decimal | null): number | null {
@@ -27,9 +53,15 @@ const bookingWithApartment = {
         images: { where: { isPrimary: true }, take: 1, select: { url: true } },
       },
     },
-    guest: { select: { id: true, fullName: true, email: true } },
+    guest: { select: { id: true, fullName: true, email: true, phone: true } },
   },
 } as const;
+
+type PaymentWithBooking = Prisma.PaymentGetPayload<{
+  include: { booking: typeof bookingWithApartment };
+}>;
+
+type BookingWithDetails = PaymentWithBooking["booking"];
 
 // ---------------------------------------------------------------------------
 // Initialize payment
@@ -61,9 +93,10 @@ export async function initializePayment(
     throw new AppError("This booking has expired. Please create a new booking.", 400);
   }
 
-  if (!booking.guest.email) {
+  const email = guestEmail(booking);
+  if (!email) {
     throw new AppError(
-      "Your account needs a verified email address to complete payment.",
+      "A verified email address is required to complete payment.",
       400,
     );
   }
@@ -97,10 +130,10 @@ export async function initializePayment(
 
   try {
     const pstk = await paystackInitialize({
-      email: booking.guest.email,
+      email,
       amountNGN,
       reference: ref,
-      callbackUrl: `${env.PAYSTACK_CALLBACK_URL ?? `${env.FRONTEND_URL}/payment/success`}?reference=${ref}`,
+      callbackUrl: paymentCallbackUrl(ref),
       metadata: {
         bookingId: booking.id,
         bookingReference: booking.bookingReference,
@@ -117,6 +150,131 @@ export async function initializePayment(
     });
 
     // Move booking to AWAITING_PAYMENT
+    if (booking.status === BookingStatus.PENDING) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.AWAITING_PAYMENT },
+      });
+    }
+
+    return {
+      paymentReference: ref,
+      authorizationUrl: pstk.authorization_url,
+      amount: amountNGN,
+      currency: booking.currency,
+      booking: {
+        id: booking.id,
+        reference: booking.bookingReference,
+        apartment: booking.apartment.title,
+        checkIn: booking.checkIn.toISOString().split("T")[0],
+        checkOut: booking.checkOut.toISOString().split("T")[0],
+        totalAmount: amountNGN,
+      },
+    };
+  } catch (err) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: PaymentStatus.FAILED, failureReason: String(err) },
+    });
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Initialize guest payment (no account)
+// ---------------------------------------------------------------------------
+
+export async function initializeGuestPayment(
+  input: InitializeGuestPaymentInput,
+) {
+  const booking = await prisma.booking.findFirst({
+    where: { id: input.bookingId },
+    ...bookingWithApartment,
+  });
+
+  if (!booking) throw new AppError("Booking not found.", 404);
+  if (booking.guestId) {
+    throw new AppError(
+      "This booking belongs to an account. Please sign in to continue.",
+      403,
+    );
+  }
+
+  assertBookingAccess(booking, input.accessToken);
+
+  const payableStatuses: BookingStatus[] = [
+    BookingStatus.PENDING,
+    BookingStatus.AWAITING_PAYMENT,
+  ];
+  if (!payableStatuses.includes(booking.status)) {
+    throw new AppError(
+      `This booking cannot be paid — current status: ${booking.status}.`,
+      400,
+    );
+  }
+
+  if (booking.expiresAt && booking.expiresAt < new Date()) {
+    throw new AppError(
+      "This booking has expired. Please create a new booking.",
+      400,
+    );
+  }
+
+  const email = guestEmail(booking);
+  if (!email) {
+    throw new AppError(
+      "A verified email address is required to complete payment.",
+      400,
+    );
+  }
+
+  const existing = await prisma.payment.findFirst({
+    where: { bookingId: booking.id, status: PaymentStatus.SUCCESS },
+  });
+  if (existing) {
+    throw new AppError("This booking has already been paid.", 409);
+  }
+
+  const ref = generatePaymentReference();
+  const amountNGN = Number(booking.totalAmount);
+
+  const payment = await prisma.payment.create({
+    data: {
+      bookingId: booking.id,
+      userId: null,
+      paymentReference: ref,
+      amount: booking.totalAmount,
+      currency: booking.currency,
+      status: PaymentStatus.INITIALIZED,
+      metadata: {
+        bookingReference: booking.bookingReference,
+        apartmentTitle: booking.apartment.title,
+        guestBooking: true,
+      },
+    },
+  });
+
+  try {
+    const pstk = await paystackInitialize({
+      email,
+      amountNGN,
+      reference: ref,
+      callbackUrl: paymentCallbackUrl(ref, input.accessToken),
+      metadata: {
+        bookingId: booking.id,
+        bookingReference: booking.bookingReference,
+        guestBooking: true,
+      },
+    });
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        paystackReference: pstk.reference,
+        status: PaymentStatus.PENDING,
+      },
+    });
+
     if (booking.status === BookingStatus.PENDING) {
       await prisma.booking.update({
         where: { id: booking.id },
@@ -202,9 +360,112 @@ export async function verifyPayment(userId: string, paymentReference: string) {
     include: { booking: { ...bookingWithApartment } },
   });
 
-  // Send receipt email after SUCCESS
-  if (newStatus === PaymentStatus.SUCCESS && updated && payment.booking.guest.email) {
-    void sendReceiptEmail(updated.booking, payment.paymentReference, updated.paidAt);
+  if (updated) {
+    const recipient = guestEmail(updated.booking);
+    if (recipient && newStatus === PaymentStatus.SUCCESS) {
+      void sendBookingConfirmationEmail(
+        updated.booking,
+        updated.paymentReference,
+        updated.paidAt,
+        `${env.FRONTEND_URL.replace(/\/$/, "")}/account/bookings/${updated.booking.id}`,
+      );
+    } else if (recipient && newStatus === PaymentStatus.FAILED) {
+      void sendPaymentFailedEmail(
+        updated.booking,
+        updated.failureReason ?? "The payment was declined.",
+        `${env.FRONTEND_URL.replace(/\/$/, "")}/account/bookings/${updated.booking.id}`,
+      );
+    }
+  }
+
+  return serializePayment(updated!);
+}
+
+// ---------------------------------------------------------------------------
+// Verify guest payment with a booking access token
+// ---------------------------------------------------------------------------
+
+export async function verifyGuestPayment(
+  paymentReference: string,
+  accessToken: string | null,
+) {
+  const payment = await prisma.payment.findUnique({
+    where: { paymentReference },
+    include: { booking: { ...bookingWithApartment } },
+  });
+
+  if (!payment || payment.userId !== null) {
+    throw new AppError("Payment record not found.", 404);
+  }
+
+  assertBookingAccess(payment.booking, accessToken);
+
+  if (payment.status === PaymentStatus.SUCCESS) {
+    return serializePayment(payment);
+  }
+
+  if (!payment.paystackReference) {
+    throw new AppError("Payment was not initialized with the provider.", 400);
+  }
+
+  const pstkData = await paystackVerify(payment.paystackReference);
+  const newStatus = pstkStatusToLocal(pstkData.status);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: newStatus,
+        gatewayResponse: pstkData.gateway_response,
+        paymentMethod: pstkData.channel,
+        paidAt: pstkData.paid_at ? new Date(pstkData.paid_at) : null,
+        failureReason:
+          newStatus === PaymentStatus.FAILED
+            ? pstkData.gateway_response
+            : null,
+      },
+    });
+
+    if (newStatus === PaymentStatus.SUCCESS) {
+      const expectedKobo = Math.round(Number(payment.amount) * 100);
+      if (
+        pstkData.amount !== expectedKobo ||
+        pstkData.currency !== payment.currency
+      ) {
+        throw new AppError("Payment amount or currency mismatch.", 400);
+      }
+
+      await confirmBookingAfterPayment(tx, payment.booking.id, payment.id);
+    }
+  });
+
+  const updated = await prisma.payment.findUnique({
+    where: { id: payment.id },
+    include: { booking: { ...bookingWithApartment } },
+  });
+
+  if (updated && accessToken) {
+    const recipient = guestEmail(updated.booking);
+    const managementUrl = buildBookingManagementUrl(
+      env.FRONTEND_URL,
+      updated.booking.bookingReference,
+      accessToken,
+    );
+
+    if (recipient && newStatus === PaymentStatus.SUCCESS) {
+      void sendBookingConfirmationEmail(
+        updated.booking,
+        updated.paymentReference,
+        updated.paidAt,
+        managementUrl,
+      );
+    } else if (recipient && newStatus === PaymentStatus.FAILED) {
+      void sendPaymentFailedEmail(
+        updated.booking,
+        updated.failureReason ?? "The payment was declined.",
+        managementUrl,
+      );
+    }
   }
 
   return serializePayment(updated!);
@@ -262,8 +523,18 @@ export async function processWebhook(rawBody: Buffer, signatureHeader: string) {
           await confirmBookingAfterPayment(tx, payment.booking.id, payment.id);
         });
 
-        if (payment.booking.guest.email) {
-          void sendReceiptEmail(payment.booking, payment.paymentReference, new Date(payload.data.paid_at));
+        const recipient = guestEmail(payment.booking);
+        if (recipient) {
+          const booking = payment.booking;
+          const managementUrl = booking.guestId
+            ? `${env.FRONTEND_URL.replace(/\/$/, "")}/account/bookings/${booking.id}`
+            : `${env.FRONTEND_URL.replace(/\/$/, "")}/bookings/manage/${encodeURIComponent(booking.bookingReference)}`;
+          void sendBookingConfirmationEmail(
+            booking,
+            payment.paymentReference,
+            payment.paidAt ?? new Date(payload.data.paid_at),
+            managementUrl,
+          );
         }
       }
     }
@@ -379,7 +650,12 @@ export async function listAdminPayments(params: { search?: string; status?: stri
     prisma.payment.findMany({
       where,
       include: {
-        booking: { include: { apartment: { select: { title: true, city: true } } } },
+        booking: {
+          include: {
+            apartment: { select: { title: true, city: true } },
+            guest: { select: { id: true, fullName: true, email: true } },
+          },
+        },
         user: { select: { id: true, fullName: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -389,7 +665,23 @@ export async function listAdminPayments(params: { search?: string; status?: stri
     prisma.payment.count({ where }),
   ]);
   return {
-    payments: payments.map((p) => ({ ...serializePayment(p), user: (p as { user?: { id: string; fullName: string; email: string | null } }).user })),
+    payments: payments.map((p) => {
+      const serialized = serializePayment(p);
+      return {
+        ...serialized,
+        user: p.user,
+        booking: p.booking
+          ? {
+              ...serialized.booking,
+              guest: {
+                id: p.booking.guestId,
+                fullName: guestName(p.booking),
+                email: guestEmail(p.booking),
+              },
+            }
+          : undefined,
+      };
+    }),
     meta: { page: params.page, limit: params.limit, total, totalPages: Math.max(1, Math.ceil(total / params.limit)) },
   };
 }
@@ -405,7 +697,22 @@ export async function listAdminRefunds(params: { status?: string; page: number; 
   const [refunds, total] = await prisma.$transaction([
     prisma.refundRequest.findMany({
       where,
-      include: { payment: { include: { booking: { select: { bookingReference: true } }, user: { select: { fullName: true, email: true } } } } },
+      include: {
+        payment: {
+          include: {
+            booking: {
+              select: {
+                bookingReference: true,
+                guestFirstName: true,
+                guestLastName: true,
+                guestEmail: true,
+                guest: { select: { fullName: true, email: true } },
+              },
+            },
+            user: { select: { fullName: true, email: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       skip,
       take: params.limit,
@@ -413,7 +720,23 @@ export async function listAdminRefunds(params: { status?: string; page: number; 
     prisma.refundRequest.count({ where }),
   ]);
   return {
-    refunds,
+    refunds: refunds.map((refund) => ({
+      ...refund,
+      payment: refund.payment
+        ? {
+            ...refund.payment,
+            booking: refund.payment.booking
+              ? {
+                  bookingReference: refund.payment.booking.bookingReference,
+                  guest: {
+                    fullName: guestName(refund.payment.booking),
+                    email: guestEmail(refund.payment.booking),
+                  },
+                }
+              : null,
+          }
+        : null,
+    })),
     meta: { page: params.page, limit: params.limit, total, totalPages: Math.max(1, Math.ceil(total / params.limit)) },
   };
 }
@@ -512,27 +835,64 @@ function serializePayment(p: { id: string; paymentReference: string; paystackRef
 }
 
 // ---------------------------------------------------------------------------
-// Receipt HTML
+// Receipt helpers
 // ---------------------------------------------------------------------------
 
-export async function getReceiptHtml(userId: string, paymentReference: string): Promise<string> {
+function locationLabel(booking: BookingWithDetails): string {
+  return [booking.apartment.location, booking.apartment.city]
+    .filter((part): part is string => Boolean(part))
+    .join(", ");
+}
+
+function receiptPdf(
+  booking: BookingWithDetails,
+  paymentReference: string,
+  paidAt: Date | null,
+): Buffer {
+  return buildReceiptPdf({
+    guestName: guestName(booking),
+    bookingReference: booking.bookingReference,
+    paymentReference,
+    apartmentTitle: booking.apartment.title,
+    apartmentLocation: locationLabel(booking),
+    checkIn: booking.checkIn.toISOString().split("T")[0],
+    checkOut: booking.checkOut.toISOString().split("T")[0],
+    numberOfGuests: booking.numberOfGuests,
+    numberOfNights: booking.numberOfNights,
+    nightlyPrice: Number(booking.nightlyPriceSnapshot),
+    cleaningFee: money(booking.cleaningFeeSnapshot),
+    additionalFees: money(booking.additionalFeesSnapshot),
+    totalAmount: Number(booking.totalAmount),
+    currency: booking.currency,
+    paidAt: (paidAt ?? new Date()).toISOString().split("T")[0],
+  });
+}
+
+export async function getReceiptHtml(
+  userId: string,
+  paymentReference: string,
+): Promise<string> {
   const payment = await prisma.payment.findUnique({
     where: { paymentReference },
     include: { booking: { ...bookingWithApartment } },
   });
 
-  if (!payment || payment.userId !== userId) throw new AppError("Receipt not found.", 404);
+  if (!payment || payment.userId !== userId)
+    throw new AppError("Receipt not found.", 404);
   if (payment.status !== PaymentStatus.SUCCESS) {
-    throw new AppError("Receipt is only available for successful payments.", 400);
+    throw new AppError(
+      "Receipt is only available for successful payments.",
+      400,
+    );
   }
 
   const b = payment.booking;
   return buildReceiptHtml({
-    guestName: b.guest.fullName,
+    guestName: guestName(b),
     bookingReference: b.bookingReference,
     paymentReference,
     apartmentTitle: b.apartment.title,
-    apartmentLocation: `${b.apartment.location ?? ""}, ${b.apartment.city}`,
+    apartmentLocation: locationLabel(b),
     checkIn: b.checkIn.toISOString().split("T")[0],
     checkOut: b.checkOut.toISOString().split("T")[0],
     numberOfGuests: b.numberOfGuests,
@@ -543,45 +903,117 @@ export async function getReceiptHtml(userId: string, paymentReference: string): 
     totalAmount: Number(b.totalAmount),
     currency: b.currency,
     paidAt: payment.paidAt?.toISOString().split("T")[0] ?? "",
-    bookingUrl: `${env.FRONTEND_URL}/account/bookings/${b.id}`,
+    bookingUrl: b.guestId
+      ? `${env.FRONTEND_URL}/account/bookings/${b.id}`
+      : `${env.FRONTEND_URL}/bookings/manage/${encodeURIComponent(b.bookingReference)}`,
   });
 }
 
-// ---------------------------------------------------------------------------
-// Send receipt email helper
-// ---------------------------------------------------------------------------
+/** Download a PDF receipt for a guest booking using its access token. */
+export async function getGuestReceiptPdf(
+  paymentReference: string,
+  accessToken: string | null,
+): Promise<{ fileName: string; buffer: Buffer }> {
+  const payment = await prisma.payment.findUnique({
+    where: { paymentReference },
+    include: { booking: { ...bookingWithApartment } },
+  });
 
-async function sendReceiptEmail(
-  booking: { id: string; bookingReference: string; checkIn: Date; checkOut: Date; numberOfGuests: number; numberOfNights: number; nightlyPriceSnapshot: Prisma.Decimal; accommodationSubtotal: Prisma.Decimal; cleaningFeeSnapshot: Prisma.Decimal | null; additionalFeesSnapshot: Prisma.Decimal | null; totalAmount: Prisma.Decimal; currency: string; guest: { fullName: string; email: string | null }; apartment: { title: string; city: string; location: string } },
+  if (!payment || payment.userId !== null) {
+    throw new AppError("Receipt not found.", 404);
+  }
+
+  assertBookingAccess(payment.booking, accessToken);
+
+  if (payment.status !== PaymentStatus.SUCCESS) {
+    throw new AppError(
+      "Receipt is only available for successful payments.",
+      400,
+    );
+  }
+
+  return {
+    fileName: `Nestora-Receipt-${payment.booking.bookingReference}.pdf`,
+    buffer: receiptPdf(payment.booking, paymentReference, payment.paidAt),
+  };
+}
+
+async function sendBookingConfirmationEmail(
+  booking: BookingWithDetails,
   paymentReference: string,
   paidAt: Date | null,
-) {
-  if (!booking.guest.email) return;
+  managementUrl: string,
+): Promise<void> {
+  const recipient = guestEmail(booking);
+  if (!recipient) return;
 
-  const html = buildReceiptHtml({
-    guestName: booking.guest.fullName,
+  const paidDate = paidAt ?? new Date();
+  const pdf = receiptPdf(booking, paymentReference, paidDate);
+
+  const html = buildBookingConfirmedHtml({
+    guestName: guestName(booking),
     bookingReference: booking.bookingReference,
-    paymentReference,
     apartmentTitle: booking.apartment.title,
-    apartmentLocation: `${booking.apartment.location}, ${booking.apartment.city}`,
-    checkIn: booking.checkIn.toISOString().split("T")[0],
-    checkOut: booking.checkOut.toISOString().split("T")[0],
+    apartmentLocation: locationLabel(booking),
+    checkIn: booking.checkIn.toLocaleDateString("en-NG", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+    checkOut: booking.checkOut.toLocaleDateString("en-NG", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
     numberOfGuests: booking.numberOfGuests,
     numberOfNights: booking.numberOfNights,
-    nightlyPrice: Number(booking.nightlyPriceSnapshot),
-    cleaningFee: money(booking.cleaningFeeSnapshot),
-    additionalFees: money(booking.additionalFeesSnapshot),
     totalAmount: Number(booking.totalAmount),
     currency: booking.currency,
-    paidAt: paidAt?.toISOString().split("T")[0] ?? new Date().toISOString().split("T")[0],
-    bookingUrl: `${env.FRONTEND_URL}/account/bookings/${booking.id}`,
+    managementUrl,
+    paymentReference,
+    paidAt: paidDate.toLocaleString("en-NG", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }),
   });
 
   await sendEmail({
-    to: booking.guest.email,
-    subject: `Your Nestora payment receipt — ${booking.bookingReference}`,
+    to: recipient,
+    subject: `Booking confirmed — ${booking.bookingReference}`,
     html,
-    templateName: "payment-receipt",
-    userId: undefined,
+    templateName: "booking-confirmation",
+    bookingId: booking.id,
+    attachments: [
+      {
+        name: `Nestora-Receipt-${booking.bookingReference}.pdf`,
+        content: pdf.toString("base64"),
+      },
+    ],
+  });
+}
+
+async function sendPaymentFailedEmail(
+  booking: BookingWithDetails,
+  reason: string,
+  retryUrl: string,
+): Promise<void> {
+  const recipient = guestEmail(booking);
+  if (!recipient) return;
+
+  await sendEmail({
+    to: recipient,
+    subject: `Payment failed — ${booking.bookingReference}`,
+    html: buildPaymentFailedHtml({
+      guestName: guestName(booking),
+      bookingReference: booking.bookingReference,
+      apartmentTitle: booking.apartment.title,
+      reason,
+      retryUrl,
+    }),
+    templateName: "payment-failed",
+    bookingId: booking.id,
   });
 }

@@ -1,16 +1,21 @@
 import type { Request, Response, NextFunction } from "express";
 import {
+  initializeGuestPayment,
   initializePayment,
+  verifyGuestPayment,
   verifyPayment,
   processWebhook,
   listGuestPayments,
   getGuestPayment,
+  getGuestReceiptPdf,
   getReceiptHtml,
 } from "../services/paymentService.js";
 import {
+  initializeGuestPaymentSchema,
   initializePaymentSchema,
   guestPaymentQuerySchema,
 } from "../validators/paymentValidators.js";
+import { extractBookingAccessToken } from "../utils/bookingAccessToken.js";
 import { param } from "../utils/requestParams.js";
 import { AppError } from "../middleware/errorHandler.js";
 
@@ -137,6 +142,79 @@ export async function getReceiptHandler(
     const html = await getReceiptHtml(req.userId!, param(req, "reference"));
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.status(200).send(html);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public guest payments (no account, secure token access)
+// ---------------------------------------------------------------------------
+
+// POST /api/v1/payments/guest/initialize
+export async function initializeGuestPaymentHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const parsed = initializeGuestPaymentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        status: "error",
+        message: parsed.error.errors[0]?.message ?? "Invalid input.",
+        errors: parsed.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    const result = await initializeGuestPayment(parsed.data);
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json({ status: "success", data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/v1/payments/guest/verify/:reference
+export async function verifyGuestPaymentHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const payment = await verifyGuestPayment(
+      param(req, "reference"),
+      extractBookingAccessToken(req),
+    );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json({ status: "success", data: { payment } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/v1/payments/guest/:reference/receipt
+export async function getGuestReceiptPdfHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { fileName, buffer } = await getGuestReceiptPdf(
+      param(req, "reference"),
+      extractBookingAccessToken(req),
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"`,
+    );
+    res.setHeader("Content-Length", String(buffer.length));
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(buffer);
   } catch (err) {
     next(err);
   }
