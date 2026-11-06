@@ -122,6 +122,7 @@ function serializeApartment(
     additionalRules: apartment.additionalRules,
     status: apartment.status,
     isFeatured: apartment.isFeatured,
+    isDemo: apartment.isDemo,
     rating: Number(apartment.rating),
     reviewCount: apartment.reviewCount,
     images: apartment.images.map((image) => ({
@@ -273,6 +274,16 @@ export async function listPublicApartments(query: PublicApartmentQuery) {
 
   if (query.guests !== undefined) {
     where.maxGuests = { gte: query.guests };
+  }
+
+  if (query.propertyType) {
+    where.propertyType = query.propertyType;
+  }
+
+  if (query.amenityIds && query.amenityIds.length > 0) {
+    where.amenities = {
+      some: { amenityId: { in: query.amenityIds } },
+    };
   }
 
   const orderBy: Prisma.ApartmentOrderByWithRelationInput =

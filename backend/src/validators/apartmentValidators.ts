@@ -204,6 +204,19 @@ export const publicApartmentQuerySchema = z.object({
   maxPrice: priceField("Maximum price"),
   bedrooms: optionalInt(1, 50, "Bedroom filter is invalid."),
   guests: optionalInt(1, 50, "Guest filter is invalid."),
+  propertyType: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.enum(propertyTypes).optional(),
+  ),
+  amenityIds: z
+    .preprocess(
+      (v) => {
+        if (v === undefined || v === null || v === "") return undefined;
+        if (Array.isArray(v)) return v;
+        return String(v).split(",").map((s) => s.trim()).filter(Boolean);
+      },
+      z.array(z.string().min(1)).max(20).optional(),
+    ),
   sortBy: z.enum(["newest", "price-asc", "price-desc", "rating"]).default("newest"),
   page: pageField,
   limit: limitField,
