@@ -950,6 +950,33 @@ async function sendBookingConfirmationEmail(
   const paidDate = paidAt ?? new Date();
   const pdf = receiptPdf(booking, paymentReference, paidDate);
 
+  const managementUrlForReceipt = managementUrl;
+  await sendEmail({
+    to: recipient,
+    subject: `Payment receipt — ${booking.bookingReference}`,
+    templateName: "payment-receipt",
+    bookingId: booking.id,
+    idempotencyKey: `payment-receipt:${paymentReference}`,
+    html: buildReceiptHtml({
+      guestName: guestName(booking),
+      bookingReference: booking.bookingReference,
+      paymentReference,
+      apartmentTitle: booking.apartment.title,
+      apartmentLocation: locationLabel(booking),
+      checkIn: booking.checkIn.toISOString().split("T")[0],
+      checkOut: booking.checkOut.toISOString().split("T")[0],
+      numberOfGuests: booking.numberOfGuests,
+      numberOfNights: booking.numberOfNights,
+      nightlyPrice: Number(booking.nightlyPriceSnapshot),
+      cleaningFee: money(booking.cleaningFeeSnapshot),
+      additionalFees: money(booking.additionalFeesSnapshot),
+      totalAmount: Number(booking.totalAmount),
+      currency: booking.currency,
+      paidAt: paidDate.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }),
+      bookingUrl: managementUrlForReceipt,
+    }),
+  });
+
   const html = buildBookingConfirmedHtml({
     guestName: guestName(booking),
     bookingReference: booking.bookingReference,
@@ -986,6 +1013,7 @@ async function sendBookingConfirmationEmail(
     html,
     templateName: "booking-confirmation",
     bookingId: booking.id,
+    idempotencyKey: `booking-confirmation:${booking.id}`,
     attachments: [
       {
         name: `Nestora-Receipt-${booking.bookingReference}.pdf`,

@@ -1,4 +1,5 @@
-import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
+import { createHash } from "crypto";
 import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 
@@ -22,6 +23,8 @@ interface SendEmailParams {
   bookingId?: string;
   paymentId?: string;
   attachments?: EmailAttachment[];
+  /** Stable key for a single business event; prevents duplicate delivery. */
+  idempotencyKey?: string;
 }
 
 /** Escape untrusted values before interpolating them into email HTML. */
@@ -102,6 +105,9 @@ async function sendViaProvider(params: {
 // ---------------------------------------------------------------------------
 
 export async function sendEmail(params: SendEmailParams): Promise<void> {
+  const idempotencyKey = params.idempotencyKey ?? createHash("sha256")
+    .update([params.templateName, params.bookingId ?? "", params.paymentId ?? "", params.userId ?? "", params.to.toLowerCase()].join(":"))
+    .digest("hex");
   const record = await prisma.emailDelivery.create({
     data: {
       userId: params.userId,
@@ -111,14 +117,19 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
       recipient: params.to,
       subject: params.subject,
       status: "QUEUED",
-      idempotencyKey: randomUUID(),
+      idempotencyKey,
       payload: {
         html: params.html,
         text: params.html.replace(/<[^>]+>/g, " "),
-        attachments: params.attachments?.map((a) => a.name) ?? [],
+        attachments: (params.attachments ?? []).map((attachment) => ({ name: attachment.name, content: attachment.content })) as Prisma.InputJsonValue,
       },
     },
+  }).catch(async (error: unknown) => {
+    if (!(typeof error === "object" && error !== null && "code" in error && error.code === "P2002")) throw error;
+    return prisma.emailDelivery.findUniqueOrThrow({ where: { idempotencyKey } });
   });
+
+  if (record.status === "SENT" || record.status === "DELIVERED" || record.status === "SENDING") return;
 
   try {
     await sendViaProvider({
@@ -133,16 +144,42 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const attempts = record.attempts + 1;
+    const retryable = attempts < env.EMAIL_MAX_RETRIES;
     await prisma.emailDelivery.update({
       where: { id: record.id },
       data: {
-        status: "FAILED",
-        attempts: 1,
+        status: retryable ? "RETRY_PENDING" : "FAILED",
+        attempts,
         lastError: msg.slice(0, 500),
+        nextRetryAt: retryable ? new Date(Date.now() + 5 * 60_000 * attempts) : null,
       },
     });
     // Do NOT rethrow — email failure must not fail the payment
     console.error(`[EMAIL] Delivery failed for ${params.to}: ${msg}`);
+  }
+}
+
+/** Retry persisted failed transactional email without touching booking or payment state. */
+export async function retryDueEmails(): Promise<void> {
+  const deliveries = await prisma.emailDelivery.findMany({
+    where: { status: "RETRY_PENDING", nextRetryAt: { lte: new Date() } },
+    orderBy: { nextRetryAt: "asc" }, take: 20,
+  });
+  for (const delivery of deliveries) {
+    const payload = delivery.payload as { html?: unknown; attachments?: unknown };
+    if (typeof payload.html !== "string") continue;
+    const attachments = Array.isArray(payload.attachments)
+      ? payload.attachments.filter((value): value is EmailAttachment =>
+          typeof value === "object" && value !== null &&
+          typeof (value as EmailAttachment).name === "string" &&
+          typeof (value as EmailAttachment).content === "string")
+      : [];
+    await prisma.emailDelivery.update({ where: { id: delivery.id }, data: { status: "QUEUED" } });
+    await sendEmail({ to: delivery.recipient, subject: delivery.subject, html: payload.html,
+      templateName: delivery.templateName, userId: delivery.userId ?? undefined,
+      bookingId: delivery.bookingId ?? undefined, paymentId: delivery.paymentId ?? undefined,
+      attachments, idempotencyKey: delivery.idempotencyKey });
   }
 }
 

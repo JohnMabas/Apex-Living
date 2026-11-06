@@ -1,7 +1,7 @@
 import { BookingStatus, JobStatus } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
-import { sendEmail, buildReminderHtml } from "./emailService.js";
+import { sendEmail, buildReminderHtml, retryDueEmails } from "./emailService.js";
 import { guestEmail, guestName } from "../utils/bookingGuest.js";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +43,7 @@ export async function scheduleBookingReminders(bookingId: string): Promise<void>
 // ---------------------------------------------------------------------------
 
 export async function processDueJobs(): Promise<void> {
+  await retryDueEmails();
   const jobs = await prisma.jobQueue.findMany({
     where: {
       status: JobStatus.PENDING,

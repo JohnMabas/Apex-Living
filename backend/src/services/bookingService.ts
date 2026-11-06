@@ -591,6 +591,25 @@ export async function createBooking(
     return created;
   });
 
+  const recipient = guestEmail(booking);
+  if (recipient) {
+    void sendEmail({
+      to: recipient, userId: guestId, bookingId: booking.id,
+      subject: `Booking received — ${booking.bookingReference}`,
+      templateName: "booking-received",
+      html: buildBookingReceivedHtml({
+        guestName: guestName(booking), bookingReference: booking.bookingReference,
+        apartmentTitle: booking.apartment.title,
+        apartmentLocation: [booking.apartment.location, booking.apartment.city].filter(Boolean).join(", "),
+        checkIn: formatEmailDate(booking.checkIn), checkOut: formatEmailDate(booking.checkOut),
+        numberOfGuests: booking.numberOfGuests, numberOfNights: booking.numberOfNights,
+        totalAmount: Number(booking.totalAmount), currency: booking.currency,
+        managementUrl: `${env.FRONTEND_URL.replace(/\/$/, "")}/account/bookings/${booking.id}`,
+        expiresAt: booking.expiresAt ? formatEmailDate(booking.expiresAt) : "soon",
+      }),
+    });
+  }
+
   return serializeBooking(booking);
 }
 
@@ -803,6 +822,22 @@ export async function cancelGuestBooking(
 
     return b;
   });
+
+  const recipient = guestEmail(updated);
+  if (recipient) {
+    void sendEmail({
+      to: recipient, userId: guestId, bookingId: updated.id,
+      subject: `Booking cancelled — ${updated.bookingReference}`, templateName: "booking-cancelled",
+      html: buildCancellationHtml({
+        guestName: guestName(updated), bookingReference: updated.bookingReference, apartmentTitle: updated.apartment.title,
+        apartmentLocation: [updated.apartment.location, updated.apartment.city].filter(Boolean).join(", "),
+        checkIn: formatEmailDate(updated.checkIn), checkOut: formatEmailDate(updated.checkOut),
+        numberOfGuests: updated.numberOfGuests, numberOfNights: updated.numberOfNights, totalAmount: Number(updated.totalAmount),
+        currency: updated.currency, managementUrl: `${env.FRONTEND_URL.replace(/\/$/, "")}/account/bookings/${updated.id}`,
+        reason: input.reason, cancelledAt: formatEmailDate(updated.cancelledAt ?? new Date()),
+      }),
+    });
+  }
 
   return serializeBooking(updated);
 }
