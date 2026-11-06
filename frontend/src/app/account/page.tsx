@@ -14,6 +14,9 @@ import {
   EyeOff,
   CheckCircle,
   Home,
+  CalendarDays,
+  CreditCard,
+  Bell,
 } from "lucide-react";
 import { Input } from "@/components/Input";
 import Button from "@/components/Button";
@@ -404,6 +407,63 @@ export default function AccountPage() {
 
         {/* Sections */}
         <div className="space-y-6">
+          {/* Quick links */}
+          <section className="bg-white rounded-2xl border border-charcoal/8 p-6 lg:p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-forest-green/10">
+                <CalendarDays size={18} className="text-forest-green" />
+              </span>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-forest-green">My Bookings</h2>
+                <p className="text-xs text-charcoal/50">View and manage your reservations</p>
+              </div>
+            </div>
+            <Link
+              href="/account/bookings"
+              className="inline-flex items-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
+            >
+              View My Bookings
+            </Link>
+          </section>
+
+          {/* Payment History */}
+          <section className="bg-white rounded-2xl border border-charcoal/8 p-6 lg:p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-forest-green/10">
+                <CreditCard size={18} className="text-forest-green" />
+              </span>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-forest-green">Payment History</h2>
+                <p className="text-xs text-charcoal/50">View your payment records and receipts</p>
+              </div>
+            </div>
+            <Link
+              href="/account/payments"
+              className="inline-flex items-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
+            >
+              View Payment History
+            </Link>
+          </section>
+
+          {/* Notifications */}
+          <section className="bg-white rounded-2xl border border-charcoal/8 p-6 lg:p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-forest-green/10">
+                <Bell size={18} className="text-forest-green" />
+              </span>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-forest-green">Notifications</h2>
+                <p className="text-xs text-charcoal/50">Manage your email preferences</p>
+              </div>
+            </div>
+            <Link
+              href="/account/notifications"
+              className="inline-flex items-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
+            >
+              Manage Notifications
+            </Link>
+          </section>
+
           <ProfileSection />
           <ChangePasswordSection />
 
