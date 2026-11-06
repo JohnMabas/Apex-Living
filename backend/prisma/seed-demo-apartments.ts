@@ -110,7 +110,7 @@ const DEMO_APARTMENTS: DemoApartmentInput[] = [
       "smart-tv", "hot-water", "refrigerator", "balcony", "elevator", "workspace",
     ],
     images: [
-      { url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0260?w=1200&q=80", altText: "Modern penthouse living room with city view" },
+      { url: "https://images.unsplash.com/photo-1564540583246-934409427776?w=1200&q=80", altText: "Modern penthouse living room with city view" },
       { url: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=1200&q=80", altText: "Master bedroom with large bed" },
       { url: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1200&q=80", altText: "Modern kitchen with appliances" },
       { url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=1200&q=80", altText: "Luxury bathroom with soaking tub" },
@@ -143,7 +143,7 @@ const DEMO_APARTMENTS: DemoApartmentInput[] = [
       "washing-machine", "smart-tv", "hot-water", "refrigerator", "garden", "workspace",
     ],
     images: [
-      { url: "https://images.unsplash.com/photo-1493809842364-78817add727e?w=1200&q=80", altText: "Bright living room with garden view" },
+      { url: "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?w=1200&q=80", altText: "Bright living room with garden view" },
       { url: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=1200&q=80", altText: "Cozy bedroom with natural light" },
       { url: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=1200&q=80", altText: "Modern kitchen with breakfast bar" },
       { url: "https://images.unsplash.com/photo-1416339306562-f3d12fefd36f?w=1200&q=80", altText: "Private garden terrace" },
@@ -176,8 +176,8 @@ const DEMO_APARTMENTS: DemoApartmentInput[] = [
       "hot-water", "refrigerator", "microwave", "elevator", "workspace",
     ],
     images: [
-      { url: "https://images.unsplash.com/photo-1502672260266-1c1ef2d9e88e?w=1200&q=80", altText: "Modern studio with waterfront view" },
-      { url: "https://images.unsplash.com/photo-1522771739844-2a723d3e35f9?w=1200&q=80", altText: "Compact kitchenette" },
+      { url: "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&q=80", altText: "Modern studio with waterfront view" },
+      { url: "https://images.unsplash.com/photo-1554995207-c18c203602cb?w=1200&q=80", altText: "Compact kitchenette" },
       { url: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=1200&q=80", altText: "Modern bathroom" },
     ],
     isFeatured: false,
@@ -278,10 +278,10 @@ const DEMO_APARTMENTS: DemoApartmentInput[] = [
       "smart-tv", "hot-water", "refrigerator", "garden", "generator",
     ],
     images: [
-      { url: "https://images.unsplash.com/photo-1568605114987-505b54b413d9?w=1200&q=80", altText: "Cosy cottage exterior" },
+      { url: "https://images.unsplash.com/photo-1502672023488-70e25813eb80?w=1200&q=80", altText: "Cosy cottage exterior" },
       { url: "https://images.unsplash.com/photo-1567016432779-094069958ea5?w=1200&q=80", altText: "Living room with fireplace" },
       { url: "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=1200&q=80", altText: "Compact kitchen" },
-      { url: "https://images.unsplash.com/photo-1617806898100-6e6b6f5f2d3a?w=1200&q=80", altText: "Garden with hill views" },
+      { url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=1200&q=80", altText: "Garden with hill views" },
     ],
     isFeatured: false,
   },
