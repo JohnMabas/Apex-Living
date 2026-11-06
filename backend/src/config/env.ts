@@ -5,6 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(5000),
   DATABASE_URL: z.string().url().optional(),
+  DATABASE_CA_CERT_PATH: z.string().trim().min(1).optional(),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
 
   // Authentication
@@ -44,6 +45,10 @@ const envSchema = z.object({
 
   // Scheduler interval (ms). Default: 60 seconds.
   JOB_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+
+  // Demo apartment seeding — only allowed in development/test.
+  // Set ENABLE_DEMO_SEED=true to run the demo seed script.
+  ENABLE_DEMO_SEED: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
