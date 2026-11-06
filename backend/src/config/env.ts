@@ -10,17 +10,40 @@ const envSchema = z.object({
   // Authentication
   JWT_SECRET: z
     .string()
-    .min(32, "JWT_SECRET must be at least 32 characters — run: openssl rand -base64 64")
+    .min(32)
     .default("change-me-in-production-use-openssl-rand-base64-64-for-real-secret"),
-
-  // Cookie signing secret (for signed cookies)
   COOKIE_SECRET: z
     .string()
-    .min(32, "COOKIE_SECRET must be at least 32 characters")
+    .min(32)
     .default("change-me-in-production-use-openssl-rand-base64-64-for-real-secret"),
-
-  // JWT expiry (defaults to 7 days)
   JWT_EXPIRES_IN: z.string().default("7d"),
+
+  // Image storage (Phase 4)
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  UPLOAD_DIR: z.string().default("uploads"),
+
+  // Paystack (Phase 6)
+  PAYSTACK_SECRET_KEY: z.string().optional(),
+  PAYSTACK_BASE_URL: z.string().url().default("https://api.paystack.co"),
+  PAYSTACK_CALLBACK_URL: z.string().url().optional(),
+
+  // Transactional email (Brevo). Credentials are intentionally backend-only.
+  EMAIL_PROVIDER: z.literal("brevo").default("brevo"),
+  EMAIL_PROVIDER_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().email().optional(),
+  EMAIL_FROM_NAME: z.string().default("Nestora"),
+  EMAIL_PROVIDER_URL: z
+    .string()
+    .url()
+    .default("https://api.brevo.com/v3/smtp/email"),
+  EMAIL_WEBHOOK_SECRET: z.string().min(16).optional(),
+  EMAIL_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
+  EMAIL_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
+
+  // Scheduler interval (ms). Default: 60 seconds.
+  JOB_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export const env = envSchema.parse(process.env);

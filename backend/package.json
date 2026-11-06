@@ -11,11 +11,13 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:test": "tsx src/utils/testDatabaseConnection.ts",
-    "test:health": "tsx tests/health.test.ts"
+    "test:health": "tsx tests/health.test.ts",
+    "test:apartments": "tsx tests/apartments.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -23,6 +25,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.5.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -31,6 +34,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.9",
+    "@types/multer": "^1.4.13",
     "@types/node": "^20.17.0",
     "prisma": "^6.19.0",
     "tsx": "^4.19.2",
