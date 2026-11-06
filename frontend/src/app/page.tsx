@@ -13,7 +13,10 @@ import {
 import SearchBar from "@/components/SearchBar";
 import SectionHeading from "@/components/SectionHeading";
 import ApartmentCard from "@/components/ApartmentCard";
-import { featuredApartments, testimonials } from "@/lib/data";
+import { testimonials } from "@/lib/data";
+import { getPublicApartments } from "@/services/apartmentService";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Find a Place That Feels Like Home",
@@ -100,7 +103,12 @@ const howItWorks = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const result = await getPublicApartments({ sortBy: "rating", limit: 6 }).catch(
+    () => null,
+  );
+  const featuredApartments = result?.apartments ?? [];
+
   return (
     <>
       {/* ─── HERO ─────────────────────────────────────────────────────── */}
@@ -163,11 +171,23 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredApartments.slice(0, 6).map((apt) => (
-              <ApartmentCard key={apt.id} apartment={apt} />
-            ))}
-          </div>
+          {featuredApartments.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredApartments.map((apt) => (
+                <ApartmentCard key={apt.id} apartment={apt} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-charcoal/20 bg-white/60 px-6 py-14 text-center">
+              <p className="font-display text-lg font-semibold text-forest-green">
+                New stays are on the way
+              </p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-charcoal/55">
+                Our hosts are preparing their spaces. Check back soon to
+                discover the first Nestora apartments.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // Protected routes — unauthenticated users are redirected to /login
 // ---------------------------------------------------------------------------
 
-const PROTECTED_PREFIXES = ["/account", "/dashboard"];
+const PROTECTED_PREFIXES = ["/account", "/dashboard", "/host", "/admin", "/payment"];
 
 // Routes that logged-in users shouldn't need to visit
 const AUTH_ONLY_ROUTES = ["/login", "/register"];

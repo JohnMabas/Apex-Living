@@ -3,7 +3,17 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X, Home, User, LogOut, ChevronDown } from "lucide-react";
+import {
+  Menu,
+  X,
+  Home,
+  User,
+  LogOut,
+  ChevronDown,
+  Building2,
+  ShieldCheck,
+  CalendarDays,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
@@ -166,6 +176,36 @@ export default function Navbar() {
                       <User size={14} />
                       My Account
                     </Link>
+                    <Link
+                      href="/account/bookings"
+                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <CalendarDays size={14} />
+                      My Bookings
+                    </Link>
+                    <Link
+                      href="/host"
+                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <Building2 size={14} />
+                      My Apartments
+                    </Link>
+                    <Link
+                      href="/host/bookings"
+                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <CalendarDays size={14} />
+                      Reservations
+                    </Link>
+                    {user.role === "ADMIN" && (
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                      >
+                        <ShieldCheck size={14} />
+                        Admin
+                      </Link>
+                    )}
                     <button
                       type="button"
                       onClick={handleLogout}
@@ -262,6 +302,36 @@ export default function Navbar() {
                     <User size={16} />
                     My Account
                   </Link>
+                  <Link
+                    href="/account/bookings"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                  >
+                    <CalendarDays size={16} />
+                    My Bookings
+                  </Link>
+                  <Link
+                    href="/host"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                  >
+                    <Building2 size={16} />
+                    My Apartments
+                  </Link>
+                  <Link
+                    href="/host/bookings"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                  >
+                    <CalendarDays size={16} />
+                    Reservations
+                  </Link>
+                  {user.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <ShieldCheck size={16} />
+                      Admin
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={handleLogout}

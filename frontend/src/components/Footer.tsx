@@ -17,6 +17,11 @@ const footerLinks = {
     { href: "/login", label: "Sign In" },
     { href: "/register", label: "Create Account" },
   ],
+  legal: [
+    { href: "/refund-policy", label: "Refund Policy" },
+    { href: "/privacy", label: "Privacy Policy" },
+    { href: "/cookie-policy", label: "Cookie Policy" },
+  ],
 };
 
 export default function Footer() {
@@ -144,6 +149,25 @@ export default function Footer() {
               </h3>
               <ul className="space-y-3">
                 {footerLinks.account.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-sm text-warm-ivory/70 hover:text-soft-gold transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Legal links */}
+            <div className="mt-6">
+              <h3 className="font-semibold text-warm-ivory mb-4 text-sm uppercase tracking-wider">
+                Legal
+              </h3>
+              <ul className="space-y-3">
+                {footerLinks.legal.map((link) => (
                   <li key={link.href}>
                     <Link
                       href={link.href}
