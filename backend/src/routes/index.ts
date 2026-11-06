@@ -15,6 +15,15 @@ import { paymentRouter } from "./paymentRoutes.js";
 import { adminPaymentRouter } from "./adminPaymentRoutes.js";
 import { emailPrefRouter } from "./emailPrefRoutes.js";
 import { cookieConsentRouter } from "./cookieConsentRoutes.js";
+import { notificationRouter } from "./notificationRoutes.js";
+import {
+  supportRouter,
+  adminSupportRouter,
+} from "./supportRoutes.js";
+import {
+  hostAvailabilityRouter,
+  adminAvailabilityRouter,
+} from "./availabilityRoutes.js";
 
 export const apiRouter = Router();
 
@@ -43,3 +52,14 @@ apiRouter.use(emailPrefRouter);
 
 // Cookie consent (Phase 6)
 apiRouter.use("/cookie-consent", cookieConsentRouter);
+
+// Notifications (Phase 7)
+apiRouter.use("/notifications", notificationRouter);
+
+// Support tickets (Phase 7)
+apiRouter.use("/support", supportRouter);
+apiRouter.use("/admin/support", adminSupportRouter);
+
+// Availability blocks (Phase 7)
+apiRouter.use("/host", hostAvailabilityRouter);
+apiRouter.use("/admin", adminAvailabilityRouter);

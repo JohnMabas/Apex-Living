@@ -7,7 +7,6 @@ import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { generalLimiter } from "./middleware/rateLimiters.js";
 import { apiRouter } from "./routes/index.js";
-import { startScheduler } from "./services/schedulerService.js";
 
 export const app = express();
 
@@ -48,6 +47,3 @@ app.use(generalLimiter);
 app.use("/api/v1", apiRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
-
-// Start the background job scheduler
-startScheduler();
