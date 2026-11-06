@@ -1,42 +1,5 @@
 import type { AuthUser } from "@/types";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
-
-// ---------------------------------------------------------------------------
-// Base fetch helper
-// ---------------------------------------------------------------------------
-
-interface ApiError extends Error {
-  statusCode?: number;
-  fieldErrors?: Record<string, string[]>;
-}
-
-async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    credentials: "include", // Send HTTP-only cookies on every request
-    ...options,
-  });
-
-  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-
-  if (!response.ok) {
-    const err = new Error(
-      (body.message as string) ?? "Something went wrong.",
-    ) as ApiError;
-    err.statusCode = response.status;
-    if (body.errors) {
-      err.fieldErrors = body.errors as Record<string, string[]>;
-    }
-    throw err;
-  }
-
-  return body as T;
-}
+import { apiFetch } from "./apiClient";
 
 // ---------------------------------------------------------------------------
 // Auth API calls
