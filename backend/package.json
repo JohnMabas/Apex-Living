@@ -12,7 +12,9 @@
     "prisma:studio": "prisma studio",
     "db:test": "tsx src/utils/testDatabaseConnection.ts",
     "test:health": "tsx tests/health.test.ts",
-    "test:apartments": "tsx tests/apartments.test.ts"
+    "test:apartments": "tsx tests/apartments.test.ts",
+    "test:guest-bookings": "tsx tests/guestBooking.test.ts",
+    "seed:demo": "tsx prisma/seed-demo-apartments.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
