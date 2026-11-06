@@ -13,31 +13,51 @@ import {
 } from "lucide-react";
 import ImageGallery from "@/components/ImageGallery";
 import BookingSummary from "@/components/BookingSummary";
-import { apartments, formatPrice } from "@/lib/data";
+import { getPublicApartment } from "@/services/apartmentService";
+import type { Apartment } from "@/types";
+import { formatPrice, resolveMediaUrl } from "@/lib/format";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
-export async function generateStaticParams() {
-  return apartments.map((apt) => ({ id: apt.id }));
+async function loadApartment(id: string): Promise<Apartment | null> {
+  try {
+    return await getPublicApartment(id);
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const apt = apartments.find((a) => a.id === id);
-  if (!apt) return { title: "Apartment Not Found" };
+  const apartment = await loadApartment(id);
+
+  if (!apartment) return { title: "Apartment Not Found" };
+
   return {
-    title: `${apt.title} — ${apt.location}`,
-    description: apt.description.slice(0, 155),
+    title: `${apartment.title} — ${apartment.location}`,
+    description: apartment.description.slice(0, 155),
   };
 }
 
 export default async function ApartmentDetailPage({ params }: Props) {
   const { id } = await params;
-  const apt = apartments.find((a) => a.id === id);
+  const apartment = await loadApartment(id);
 
-  if (!apt) notFound();
+  if (!apartment) notFound();
+
+  const images = apartment.images
+    .map((image) => resolveMediaUrl(image.url))
+    .filter((url): url is string => Boolean(url));
+
+  const houseRules = [
+    apartment.smokingPolicy,
+    apartment.petPolicy,
+    ...(apartment.additionalRules ? [apartment.additionalRules] : []),
+  ];
 
   return (
     <div className="min-h-screen bg-warm-ivory pt-20">
@@ -55,27 +75,30 @@ export default async function ApartmentDetailPage({ params }: Props) {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-forest-green mb-2">
-              {apt.title}
+              {apartment.title}
             </h1>
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <MapPin size={14} className="text-soft-gold shrink-0" />
-                <span className="text-sm text-charcoal/70">{apt.location}</span>
+                <span className="text-sm text-charcoal/70">
+                  {apartment.location}, {apartment.city}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Star size={14} className="text-soft-gold fill-soft-gold" />
                 <span className="text-sm font-medium text-charcoal">
-                  {apt.rating.toFixed(1)}
+                  {apartment.rating > 0 ? apartment.rating.toFixed(1) : "New"}
                 </span>
                 <span className="text-sm text-charcoal/50">
-                  ({apt.reviewCount} reviews)
+                  ({apartment.reviewCount} review
+                  {apartment.reviewCount !== 1 ? "s" : ""})
                 </span>
               </div>
             </div>
           </div>
           <div className="sm:text-right">
             <p className="text-2xl font-semibold text-forest-green">
-              {formatPrice(apt.pricePerNight)}
+              {formatPrice(apartment.pricePerNight)}
             </p>
             <p className="text-sm text-charcoal/50">per night</p>
           </div>
@@ -83,7 +106,15 @@ export default async function ApartmentDetailPage({ params }: Props) {
 
         {/* Gallery */}
         <div className="mb-10">
-          <ImageGallery images={apt.images} title={apt.title} />
+          {images.length > 0 ? (
+            <ImageGallery images={images} title={apartment.title} />
+          ) : (
+            <div className="flex h-72 items-center justify-center rounded-2xl border border-dashed border-charcoal/20 bg-white/60">
+              <p className="text-sm text-charcoal/50">
+                Photos for this apartment are coming soon.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Content + sidebar */}
@@ -99,10 +130,10 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   strokeWidth={1.5}
                 />
                 <p className="text-lg font-semibold text-charcoal">
-                  {apt.bedrooms}
+                  {apartment.bedrooms}
                 </p>
                 <p className="text-xs text-charcoal/50">
-                  Bedroom{apt.bedrooms !== 1 ? "s" : ""}
+                  Bedroom{apartment.bedrooms !== 1 ? "s" : ""}
                 </p>
               </div>
               <div className="bg-white rounded-xl p-4 border border-charcoal/8 text-center">
@@ -112,10 +143,10 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   strokeWidth={1.5}
                 />
                 <p className="text-lg font-semibold text-charcoal">
-                  {apt.bathrooms}
+                  {apartment.bathrooms}
                 </p>
                 <p className="text-xs text-charcoal/50">
-                  Bathroom{apt.bathrooms !== 1 ? "s" : ""}
+                  Bathroom{apartment.bathrooms !== 1 ? "s" : ""}
                 </p>
               </div>
               <div className="bg-white rounded-xl p-4 border border-charcoal/8 text-center">
@@ -125,7 +156,7 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   strokeWidth={1.5}
                 />
                 <p className="text-lg font-semibold text-charcoal">
-                  {apt.guestCapacity}
+                  {apartment.maxGuests}
                 </p>
                 <p className="text-xs text-charcoal/50">Max guests</p>
               </div>
@@ -136,7 +167,9 @@ export default async function ApartmentDetailPage({ params }: Props) {
               <h2 className="font-display text-xl font-semibold text-forest-green mb-3">
                 About this apartment
               </h2>
-              <p className="text-charcoal/70 leading-relaxed">{apt.description}</p>
+              <p className="text-charcoal/70 leading-relaxed whitespace-pre-line">
+                {apartment.description}
+              </p>
             </div>
 
             {/* Amenities */}
@@ -144,20 +177,28 @@ export default async function ApartmentDetailPage({ params }: Props) {
               <h2 className="font-display text-xl font-semibold text-forest-green mb-4">
                 Amenities
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {apt.amenities.map((amenity) => (
-                  <div
-                    key={amenity}
-                    className="flex items-center gap-2.5 bg-white rounded-lg px-3 py-2.5 border border-charcoal/8"
-                  >
-                    <CheckCircle2
-                      size={15}
-                      className="text-forest-green shrink-0"
-                    />
-                    <span className="text-sm text-charcoal/80">{amenity}</span>
-                  </div>
-                ))}
-              </div>
+              {apartment.amenities.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {apartment.amenities.map((amenity) => (
+                    <div
+                      key={amenity.id}
+                      className="flex items-center gap-2.5 bg-white rounded-lg px-3 py-2.5 border border-charcoal/8"
+                    >
+                      <CheckCircle2
+                        size={15}
+                        className="text-forest-green shrink-0"
+                      />
+                      <span className="text-sm text-charcoal/80">
+                        {amenity.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-charcoal/50">
+                  Amenity details are being updated.
+                </p>
+              )}
             </div>
 
             {/* Check-in / Check-out */}
@@ -173,11 +214,8 @@ export default async function ApartmentDetailPage({ params }: Props) {
                       Check-in
                     </span>
                   </div>
-                  <p className="text-2xl font-semibold text-forest-green">
-                    {apt.checkInTime}
-                  </p>
-                  <p className="text-xs text-charcoal/50 mt-1">
-                    Early check-in subject to availability
+                  <p className="text-sm font-medium text-forest-green">
+                    {apartment.checkInInfo}
                   </p>
                 </div>
                 <div className="bg-white rounded-xl p-5 border border-charcoal/8">
@@ -187,11 +225,8 @@ export default async function ApartmentDetailPage({ params }: Props) {
                       Check-out
                     </span>
                   </div>
-                  <p className="text-2xl font-semibold text-forest-green">
-                    {apt.checkOutTime}
-                  </p>
-                  <p className="text-xs text-charcoal/50 mt-1">
-                    Late check-out subject to availability
+                  <p className="text-sm font-medium text-forest-green">
+                    {apartment.checkOutInfo}
                   </p>
                 </div>
               </div>
@@ -203,7 +238,7 @@ export default async function ApartmentDetailPage({ params }: Props) {
                 House Rules
               </h2>
               <div className="bg-white rounded-xl border border-charcoal/8 p-5 space-y-3">
-                {apt.houseRules.map((rule) => (
+                {houseRules.map((rule) => (
                   <div key={rule} className="flex items-start gap-3">
                     <AlertCircle
                       size={15}
@@ -224,10 +259,9 @@ export default async function ApartmentDetailPage({ params }: Props) {
                 <div className="flex items-center gap-2 mb-3">
                   <MapPin size={16} className="text-soft-gold" />
                   <span className="text-sm font-medium text-charcoal">
-                    {apt.location}
+                    {apartment.address}
                   </span>
                 </div>
-                {/* Placeholder map block */}
                 <div className="rounded-lg bg-forest-green/5 border border-forest-green/10 h-36 flex items-center justify-center">
                   <p className="text-sm text-charcoal/40">
                     Interactive map available after booking
@@ -241,9 +275,11 @@ export default async function ApartmentDetailPage({ params }: Props) {
           <div className="lg:col-span-1">
             <div className="sticky top-24">
               <BookingSummary
-                pricePerNight={apt.pricePerNight}
-                rating={apt.rating}
-                reviewCount={apt.reviewCount}
+                apartmentId={apartment.id}
+                pricePerNight={apartment.pricePerNight}
+                maxGuests={apartment.maxGuests}
+                rating={apartment.rating}
+                reviewCount={apartment.reviewCount}
               />
             </div>
           </div>

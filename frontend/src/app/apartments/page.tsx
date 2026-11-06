@@ -1,13 +1,19 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import ApartmentCard from "@/components/ApartmentCard";
 import FilterPanel from "@/components/FilterPanel";
 import SectionHeading from "@/components/SectionHeading";
-import { apartments } from "@/lib/data";
-import type { ApartmentFilters } from "@/types";
+import { getPublicApartments } from "@/services/apartmentService";
+import type { ApartmentFilters, Apartment } from "@/types";
 
 const defaultFilters: ApartmentFilters = {
   location: "",
@@ -20,67 +26,80 @@ const defaultFilters: ApartmentFilters = {
 
 function ApartmentsContent() {
   const searchParams = useSearchParams();
-  const [filters, setFilters] = useState<ApartmentFilters>(() => ({
-    ...defaultFilters,
-    location: searchParams.get("city") ?? "",
-  }));
+  const [filters, setFilters] = useState<ApartmentFilters>(defaultFilters);
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("city") ?? "",
   );
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const city = searchParams.get("city") ?? "";
-    setFilters((prev) => ({ ...prev, location: city }));
     setSearchQuery(city);
+    setFilters(defaultFilters);
+    setPage(1);
   }, [searchParams]);
 
-  const filtered = useMemo(() => {
-    let result = [...apartments];
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
 
-    const q = searchQuery.toLowerCase().trim();
-    if (q) {
-      result = result.filter(
-        (a) =>
-          a.city.toLowerCase().includes(q) ||
-          a.location.toLowerCase().includes(q) ||
-          a.title.toLowerCase().includes(q),
-      );
-    }
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setError(null);
 
-    if (filters.location) {
-      result = result.filter((a) =>
-        a.city.toLowerCase().includes(filters.location.toLowerCase()),
-      );
-    }
+      getPublicApartments(
+        {
+          city: filters.location || undefined,
+          search: searchQuery.trim() || undefined,
+          minPrice: filters.minPrice,
+          maxPrice: filters.maxPrice,
+          bedrooms: filters.bedrooms,
+          guests: filters.guests,
+          sortBy:
+            filters.sortBy === "default" ? "newest" : filters.sortBy,
+          page,
+          limit: 9,
+        },
+        controller.signal,
+      )
+        .then((result) => {
+          if (cancelled) return;
+          setApartments(result.apartments);
+          setTotalPages(result.meta.totalPages);
+          setTotal(result.meta.total);
+        })
+        .catch((err: unknown) => {
+          if (cancelled || (err instanceof Error && err.name === "AbortError")) {
+            return;
+          }
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not load apartments right now.",
+          );
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 250);
 
-    if (filters.minPrice !== null) {
-      result = result.filter((a) => a.pricePerNight >= filters.minPrice!);
-    }
-    if (filters.maxPrice !== null) {
-      result = result.filter((a) => a.pricePerNight <= filters.maxPrice!);
-    }
-    if (filters.bedrooms !== null) {
-      result = result.filter((a) => a.bedrooms >= filters.bedrooms!);
-    }
-    if (filters.guests !== null) {
-      result = result.filter((a) => a.guestCapacity >= filters.guests!);
-    }
-
-    if (filters.sortBy === "price-asc") {
-      result.sort((a, b) => a.pricePerNight - b.pricePerNight);
-    } else if (filters.sortBy === "price-desc") {
-      result.sort((a, b) => b.pricePerNight - a.pricePerNight);
-    } else if (filters.sortBy === "rating") {
-      result.sort((a, b) => b.rating - a.rating);
-    }
-
-    return result;
-  }, [filters, searchQuery]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [filters, searchQuery, page]);
 
   const resetFilters = () => {
     setFilters(defaultFilters);
     setSearchQuery("");
+    setPage(1);
   };
 
   return (
@@ -105,12 +124,18 @@ function ApartmentsContent() {
               type="search"
               placeholder="Search by city, location, or name…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-11 pr-4 py-3 rounded-xl border border-white/20 bg-white/10 text-warm-ivory placeholder:text-warm-ivory/50 text-sm focus:outline-none focus:ring-2 focus:ring-soft-gold/50 focus:bg-white/15 transition-colors"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("");
+                  setPage(1);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-ivory/50 hover:text-warm-ivory transition-colors"
                 aria-label="Clear search"
               >
@@ -125,7 +150,7 @@ function ApartmentsContent() {
         {/* Mobile filter toggle */}
         <div className="flex items-center justify-between mb-6 lg:hidden">
           <p className="text-sm text-charcoal/60">
-            {filtered.length} apartment{filtered.length !== 1 ? "s" : ""}
+            {loading ? "Loading…" : `${total} apartment${total !== 1 ? "s" : ""}`}
           </p>
           <button
             onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -141,9 +166,12 @@ function ApartmentsContent() {
           <div className="lg:hidden mb-6">
             <FilterPanel
               filters={filters}
-              onChange={setFilters}
+              onChange={(next) => {
+                setFilters(next);
+                setPage(1);
+              }}
               onReset={resetFilters}
-              resultCount={filtered.length}
+              resultCount={total}
             />
           </div>
         )}
@@ -154,16 +182,29 @@ function ApartmentsContent() {
             <div className="sticky top-24">
               <FilterPanel
                 filters={filters}
-                onChange={setFilters}
+                onChange={(next) => {
+                  setFilters(next);
+                  setPage(1);
+                }}
                 onReset={resetFilters}
-                resultCount={filtered.length}
+                resultCount={total}
               />
             </div>
           </aside>
 
           {/* Grid */}
           <div className="flex-1 min-w-0">
-            {filtered.length === 0 ? (
+            {error && (
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {loading ? (
+              <div className="flex items-center justify-center py-24">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-green/30 border-t-forest-green" />
+              </div>
+            ) : apartments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="flex items-center justify-center w-16 h-16 rounded-full bg-forest-green/8 mb-4">
                   <Search size={24} className="text-forest-green/40" />
@@ -183,9 +224,35 @@ function ApartmentsContent() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filtered.map((apt) => (
+                {apartments.map((apt) => (
                   <ApartmentCard key={apt.id} apartment={apt} />
                 ))}
+              </div>
+            )}
+
+            {!loading && totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={page <= 1}
+                  className="inline-flex items-center gap-1 rounded-lg border border-charcoal/20 bg-white px-3 py-2 text-sm text-charcoal disabled:opacity-40 hover:bg-charcoal/5"
+                >
+                  <ChevronLeft size={15} /> Previous
+                </button>
+                <span className="text-sm text-charcoal/60">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
+                  disabled={page >= totalPages}
+                  className="inline-flex items-center gap-1 rounded-lg border border-charcoal/20 bg-white px-3 py-2 text-sm text-charcoal disabled:opacity-40 hover:bg-charcoal/5"
+                >
+                  Next <ChevronRight size={15} />
+                </button>
               </div>
             )}
           </div>
@@ -197,11 +264,13 @@ function ApartmentsContent() {
 
 export default function ApartmentsPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-warm-ivory pt-20 flex items-center justify-center">
-        <p className="text-charcoal/50">Loading apartments…</p>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-warm-ivory pt-20 flex items-center justify-center">
+          <p className="text-charcoal/50">Loading apartments…</p>
+        </div>
+      }
+    >
       <ApartmentsContent />
     </Suspense>
   );

@@ -1,14 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BedDouble, Bath, Users, Star, MapPin } from "lucide-react";
+import { BedDouble, Bath, Users, Star, MapPin, Home } from "lucide-react";
 import type { Apartment } from "@/types";
-import { formatPrice } from "@/lib/data";
+import { formatPrice, resolveMediaUrl } from "@/lib/format";
 
 interface ApartmentCardProps {
   apartment: Apartment;
 }
 
 export default function ApartmentCard({ apartment }: ApartmentCardProps) {
+  const imageUrl = resolveMediaUrl(apartment.mainImage);
+
   return (
     <article className="group bg-white rounded-2xl overflow-hidden border border-charcoal/8 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
       {/* Image */}
@@ -18,22 +20,25 @@ export default function ApartmentCard({ apartment }: ApartmentCardProps) {
         tabIndex={-1}
         aria-hidden="true"
       >
-        <div className="relative aspect-[4/3]">
-          <Image
-            src={apartment.mainImage}
-            alt={apartment.title}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+        <div className="relative aspect-[4/3] bg-forest-green/5">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={apartment.title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Home size={40} className="text-forest-green/20" strokeWidth={1.2} />
+            </div>
+          )}
           {/* Rating badge */}
           <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm">
-            <Star
-              size={12}
-              className="text-soft-gold fill-soft-gold"
-            />
+            <Star size={12} className="text-soft-gold fill-soft-gold" />
             <span className="text-xs font-semibold text-charcoal">
-              {apartment.rating.toFixed(1)}
+              {apartment.rating > 0 ? apartment.rating.toFixed(1) : "New"}
             </span>
           </div>
         </div>
@@ -45,7 +50,7 @@ export default function ApartmentCard({ apartment }: ApartmentCardProps) {
         <div className="flex items-center gap-1.5 mb-2">
           <MapPin size={13} className="text-soft-gold shrink-0" />
           <span className="text-xs text-charcoal/60 truncate">
-            {apartment.location}
+            {apartment.location}, {apartment.city}
           </span>
         </div>
 
@@ -68,7 +73,7 @@ export default function ApartmentCard({ apartment }: ApartmentCardProps) {
           </span>
           <span className="flex items-center gap-1.5 text-xs text-charcoal/60">
             <Users size={14} className="text-forest-green/60" />
-            Up to {apartment.guestCapacity}
+            Up to {apartment.maxGuests}
           </span>
         </div>
 
