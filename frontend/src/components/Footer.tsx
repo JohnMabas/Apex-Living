@@ -5,6 +5,7 @@ const footerLinks = {
   company: [
     { href: "/about", label: "About Us" },
     { href: "/contact", label: "Contact" },
+    { href: "/support", label: "Support" },
   ],
   apartments: [
     { href: "/apartments", label: "Browse Apartments" },
@@ -13,9 +14,10 @@ const footerLinks = {
     { href: "/apartments?city=Port+Harcourt", label: "Port Harcourt" },
     { href: "/apartments?city=Enugu", label: "Enugu" },
   ],
-  account: [
-    { href: "/login", label: "Sign In" },
-    { href: "/register", label: "Create Account" },
+  bookings: [
+    { href: "/apartments", label: "Find a Stay" },
+    { href: "/bookings/manage", label: "Manage My Booking" },
+    { href: "/refund-policy", label: "Cancellation Policy" },
   ],
   legal: [
     { href: "/refund-policy", label: "Refund Policy" },
@@ -142,13 +144,13 @@ export default function Footer() {
               </li>
             </ul>
 
-            {/* Account links */}
+            {/* Booking links */}
             <div className="mt-6">
               <h3 className="font-semibold text-warm-ivory mb-4 text-sm uppercase tracking-wider">
-                Account
+                Bookings
               </h3>
               <ul className="space-y-3">
-                {footerLinks.account.map((link) => (
+                {footerLinks.bookings.map((link) => (
                   <li key={link.href}>
                     <Link
                       href={link.href}

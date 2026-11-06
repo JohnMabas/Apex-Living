@@ -85,19 +85,27 @@ function HostDashboard() {
               Manage your listings, photos, and review status in one place.
             </p>
           </div>
-          <Link
-            href="/host/apartments/new"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
-          >
-            <PlusCircle size={17} />
-            Add apartment
-          </Link>
-          <Link
-            href="/host/bookings"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 bg-white px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
-          >
-            Reservations
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/host/apartments/new"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
+            >
+              <PlusCircle size={17} />
+              Add apartment
+            </Link>
+            <Link
+              href="/host/bookings"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 bg-white px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+            >
+              Reservations
+            </Link>
+            <Link
+              href="/host/availability"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 bg-white px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+            >
+              Availability
+            </Link>
+          </div>
         </div>
 
         {error && (

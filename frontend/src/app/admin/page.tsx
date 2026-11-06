@@ -106,6 +106,24 @@ function AdminOverview() {
             >
               Booking Management
             </Link>
+            <Link
+              href="/admin/payments"
+              className="inline-flex items-center gap-2 rounded-lg border border-forest-green/20 bg-white px-4 py-2 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+            >
+              Payments
+            </Link>
+            <Link
+              href="/admin/refunds"
+              className="inline-flex items-center gap-2 rounded-lg border border-forest-green/20 bg-white px-4 py-2 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+            >
+              Refunds
+            </Link>
+            <Link
+              href="/admin/support"
+              className="inline-flex items-center gap-2 rounded-lg border border-forest-green/20 bg-white px-4 py-2 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+            >
+              Support Tickets
+            </Link>
           </div>
         </div>
 

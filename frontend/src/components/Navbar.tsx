@@ -13,6 +13,8 @@ import {
   Building2,
   ShieldCheck,
   CalendarDays,
+  Headphones,
+  CalendarCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -197,6 +199,13 @@ export default function Navbar() {
                       <CalendarDays size={14} />
                       Reservations
                     </Link>
+                    <Link
+                      href="/host/availability"
+                      className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <CalendarCheck size={14} />
+                      Availability
+                    </Link>
                     {user.role === "ADMIN" && (
                       <Link
                         href="/admin"
@@ -204,6 +213,15 @@ export default function Navbar() {
                       >
                         <ShieldCheck size={14} />
                         Admin
+                      </Link>
+                    )}
+                    {user.role === "ADMIN" && (
+                      <Link
+                        href="/admin/support"
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                      >
+                        <Headphones size={14} />
+                        Support
                       </Link>
                     )}
                     <button
@@ -218,29 +236,17 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              // Logged-out: show sign in + book now
-              <>
-                <Link
-                  href="/login"
-                  className={`text-sm font-medium transition-colors duration-200 ${
-                    isTransparent
-                      ? "text-white/85 hover:text-white"
-                      : "text-charcoal/80 hover:text-forest-green"
-                  }`}
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/register"
-                  className={`text-sm font-medium px-5 py-2 rounded-lg transition-colors duration-200 ${
-                    isTransparent
-                      ? "bg-white/15 text-white border border-white/30 hover:bg-white/25"
-                      : "bg-forest-green text-warm-ivory hover:bg-forest-green/90"
-                  }`}
-                >
-                  Book Now
-                </Link>
-              </>
+              // Logged-out: public booking — no account required
+              <Link
+                href="/apartments"
+                className={`text-sm font-medium px-5 py-2 rounded-lg transition-colors duration-200 ${
+                  isTransparent
+                    ? "bg-white/15 text-white border border-white/30 hover:bg-white/25"
+                    : "bg-forest-green text-warm-ivory hover:bg-forest-green/90"
+                }`}
+              >
+                Book Now
+              </Link>
             )}
           </div>
 
@@ -323,6 +329,13 @@ export default function Navbar() {
                     <CalendarDays size={16} />
                     Reservations
                   </Link>
+                  <Link
+                    href="/host/availability"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                  >
+                    <CalendarCheck size={16} />
+                    Availability
+                  </Link>
                   {user.role === "ADMIN" && (
                     <Link
                       href="/admin"
@@ -330,6 +343,15 @@ export default function Navbar() {
                     >
                       <ShieldCheck size={16} />
                       Admin
+                    </Link>
+                  )}
+                  {user.role === "ADMIN" && (
+                    <Link
+                      href="/admin/support"
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                    >
+                      <Headphones size={16} />
+                      Support
                     </Link>
                   )}
                   <button
@@ -342,20 +364,12 @@ export default function Navbar() {
                   </button>
                 </>
               ) : (
-                <>
-                  <Link
-                    href="/login"
-                    className="block px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="block px-4 py-3 rounded-lg text-sm font-medium bg-forest-green text-warm-ivory text-center hover:bg-forest-green/90 transition-colors"
-                  >
-                    Book Now
-                  </Link>
-                </>
+                <Link
+                  href="/apartments"
+                  className="block px-4 py-3 rounded-lg text-sm font-medium bg-forest-green text-warm-ivory text-center hover:bg-forest-green/90 transition-colors"
+                >
+                  Book Now
+                </Link>
               )}
             </div>
           </div>
