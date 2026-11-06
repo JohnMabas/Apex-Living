@@ -3,6 +3,8 @@ import type {
   Booking,
   BookingListResult,
   BookingStatus,
+  GuestBookingFormData,
+  GuestBookingResult,
   PaginationMeta,
 } from "@/types";
 import { apiFetch } from "./apiClient";
@@ -189,6 +191,47 @@ export async function adminChangeBookingStatus(
   const response = await apiFetch<{ data: { booking: Booking } }>(
     `/admin/bookings/${encodeURIComponent(id)}/status`,
     { method: "PATCH", body: { status, note } },
+  );
+  return response.data.booking;
+}
+
+// ---------------------------------------------------------------------------
+// Public guest bookings (no account, secure token)
+// ---------------------------------------------------------------------------
+
+export async function createGuestBooking(
+  data: GuestBookingFormData,
+): Promise<GuestBookingResult> {
+  const response = await apiFetch<{ data: GuestBookingResult }>(
+    "/bookings/guest",
+    { method: "POST", body: data },
+  );
+  return response.data;
+}
+
+export async function getGuestBooking(
+  bookingReference: string,
+  accessToken: string,
+): Promise<Booking> {
+  const response = await apiFetch<{ data: { booking: Booking } }>(
+    `/bookings/guest/${encodeURIComponent(bookingReference)}`,
+    { headers: { "X-Booking-Token": accessToken } },
+  );
+  return response.data.booking;
+}
+
+export async function cancelGuestBooking(
+  bookingReference: string,
+  accessToken: string,
+  reason: string,
+): Promise<Booking> {
+  const response = await apiFetch<{ data: { booking: Booking } }>(
+    `/bookings/guest/${encodeURIComponent(bookingReference)}/cancel`,
+    {
+      method: "POST",
+      body: { reason },
+      headers: { "X-Booking-Token": accessToken },
+    },
   );
   return response.data.booking;
 }

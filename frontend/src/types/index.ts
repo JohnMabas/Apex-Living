@@ -55,6 +55,7 @@ export interface Apartment {
   additionalRules: string | null;
   status: ApartmentStatus;
   isFeatured: boolean;
+  isDemo: boolean;
   rating: number;
   reviewCount: number;
   images: ApartmentImage[];
@@ -159,10 +160,16 @@ export interface BookingApartment {
 }
 
 export interface BookingGuest {
-  id: string;
+  id: string | null;
   fullName: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
+  country: string | null;
+  specialRequests: string | null;
+  arrivalTime: string | null;
+  additionalNotes: string | null;
 }
 
 export interface BookingStatusHistoryEntry {
@@ -177,6 +184,8 @@ export interface Booking {
   id: string;
   bookingReference: string;
   status: BookingStatus;
+  isGuestBooking: boolean;
+  termsAcceptedAt: string | null;
   checkIn: string;
   checkOut: string;
   numberOfGuests: number;
@@ -193,6 +202,13 @@ export interface Booking {
   adminNotes: string | null;
   apartment: BookingApartment;
   guest: BookingGuest;
+  latestPayment: {
+    paymentReference: string;
+    status: PaymentStatus;
+    amount: number;
+    currency: string;
+    paidAt: string | null;
+  } | null;
   statusHistory: BookingStatusHistoryEntry[];
   createdAt: string;
   updatedAt: string;
@@ -364,4 +380,150 @@ export interface CookieConsent {
   functional: boolean;
   analytics: boolean;
   marketing: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Guest booking (no account)
+// ---------------------------------------------------------------------------
+
+export interface GuestBookingFormData {
+  apartmentId: string;
+  checkIn: string;
+  checkOut: string;
+  numberOfGuests: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  country: string;
+  specialRequests?: string;
+  arrivalTime?: string;
+  additionalNotes?: string;
+  acceptTerms: boolean;
+}
+
+export interface GuestBookingResult {
+  booking: Booking;
+  accessToken: string;
+}
+
+// ---------------------------------------------------------------------------
+// Availability Block — Phase 7
+// ---------------------------------------------------------------------------
+
+export type BlockType =
+  | "HOST_BLOCK"
+  | "MAINTENANCE"
+  | "RENOVATION"
+  | "PERSONAL_USE"
+  | "OTHER";
+
+export interface AvailabilityBlock {
+  id: string;
+  apartmentId: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  blockType: BlockType;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  apartment?: { id: string; title: string };
+}
+
+export interface AvailabilityData {
+  blockedDates: {
+    checkIn: string;
+    checkOut: string;
+    status: string;
+    type: "booking";
+  }[];
+  availabilityBlocks: {
+    id: string;
+    startDate: string;
+    endDate: string;
+    blockType: BlockType;
+    reason: string | null;
+    type: "block";
+  }[];
+}
+
+// ---------------------------------------------------------------------------
+// Notification — Phase 7
+// ---------------------------------------------------------------------------
+
+export type NotificationCategory =
+  | "BOOKINGS"
+  | "PAYMENTS"
+  | "APARTMENTS"
+  | "AVAILABILITY"
+  | "REFUNDS"
+  | "SUPPORT"
+  | "SYSTEM";
+
+export interface Notification {
+  id: string;
+  category: NotificationCategory;
+  title: string;
+  message: string;
+  link: string | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResult {
+  notifications: Notification[];
+  meta: PaginationMeta;
+  unreadCount?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Support Ticket — Phase 7
+// ---------------------------------------------------------------------------
+
+export type SupportTicketCategory =
+  | "BOOKING_ISSUE"
+  | "PAYMENT_ISSUE"
+  | "CANCELLATION"
+  | "REFUND"
+  | "APARTMENT_ISSUE"
+  | "GENERAL_ENQUIRY";
+
+export type SupportTicketStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "WAITING_FOR_CUSTOMER"
+  | "RESOLVED"
+  | "CLOSED";
+
+export interface SupportTicketMessage {
+  id: string;
+  body: string;
+  senderType: string;
+  senderName: string | null;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  ticketReference: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  bookingReference: string | null;
+  category: SupportTicketCategory;
+  subject: string;
+  status: SupportTicketStatus;
+  assignedToId: string | null;
+  authorId: string | null;
+  messages?: SupportTicketMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupportTicketListResult {
+  tickets: SupportTicket[];
+  meta: PaginationMeta;
 }

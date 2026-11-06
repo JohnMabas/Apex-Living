@@ -6,7 +6,7 @@ import type {
   CookieConsent,
   PaginationMeta,
 } from "@/types";
-import { apiFetch } from "./apiClient";
+import { apiFetch, apiFetchBlob } from "./apiClient";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,8 +34,12 @@ export interface InitializePaymentResult {
   amount: number;
   currency: string;
   booking: {
-    bookingReference: string;
-    apartment: { title: string; city: string; location: string };
+    id: string;
+    reference: string;
+    apartment: string;
+    checkIn: string;
+    checkOut: string;
+    totalAmount: number;
   };
 }
 
@@ -102,7 +106,7 @@ export interface AdminPaymentsListResult {
 
 export interface AdminPayment extends Payment {
   booking?: Payment["booking"] & {
-    guest?: { id: string; fullName: string; email: string | null };
+    guest?: { id: string | null; fullName: string; email: string | null };
   };
 }
 
@@ -195,4 +199,55 @@ export async function updateEmailPreferences(data: {
 
 export async function saveCookieConsent(data: CookieConsent): Promise<void> {
   await apiFetch("/cookie-consent", { method: "POST", body: data });
+}
+
+// ---------------------------------------------------------------------------
+// Public guest payments (no account, secure token)
+// ---------------------------------------------------------------------------
+
+export interface GuestInitializePaymentResult {
+  authorizationUrl: string;
+  paymentReference: string;
+  amount: number;
+  currency: string;
+  booking: {
+    id: string;
+    reference: string;
+    apartment: string;
+    checkIn: string;
+    checkOut: string;
+    totalAmount: number;
+  };
+}
+
+export async function initializeGuestPayment(
+  bookingId: string,
+  accessToken: string,
+): Promise<GuestInitializePaymentResult> {
+  const response = await apiFetch<{ data: GuestInitializePaymentResult }>(
+    "/payments/guest/initialize",
+    { method: "POST", body: { bookingId, accessToken } },
+  );
+  return response.data;
+}
+
+export async function verifyGuestPayment(
+  reference: string,
+  accessToken: string,
+): Promise<Payment> {
+  const response = await apiFetch<{ data: { payment: Payment } }>(
+    `/payments/guest/verify/${encodeURIComponent(reference)}`,
+    { headers: { "X-Booking-Token": accessToken } },
+  );
+  return response.data.payment;
+}
+
+export async function downloadGuestReceipt(
+  reference: string,
+  accessToken: string,
+): Promise<Blob> {
+  return apiFetchBlob(
+    `/payments/guest/${encodeURIComponent(reference)}/receipt`,
+    { headers: { "X-Booking-Token": accessToken } },
+  );
 }
