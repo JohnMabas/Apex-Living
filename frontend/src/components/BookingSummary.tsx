@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Users, Star, AlertCircle, Loader2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import Button from "@/components/Button";
-import { useAuth } from "@/contexts/AuthContext";
-import { checkAvailability, createBooking } from "@/services/bookingService";
+import { checkAvailability } from "@/services/bookingService";
 import type { AvailabilityResult } from "@/types";
 
 interface BookingSummaryProps {
@@ -25,7 +24,6 @@ export default function BookingSummary({
   reviewCount,
 }: BookingSummaryProps) {
   const router = useRouter();
-  const { user } = useAuth();
 
   const today = new Date().toISOString().split("T")[0];
   const [checkIn, setCheckIn] = useState("");
@@ -35,13 +33,6 @@ export default function BookingSummary({
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
-
-  const [confirmedBooking, setConfirmedBooking] = useState<{
-    reference: string;
-    id: string;
-  } | null>(null);
-  const [reserving, setReserving] = useState(false);
-  const [reserveError, setReserveError] = useState<string | null>(null);
 
   const runAvailabilityCheck = useCallback(async () => {
     if (!checkIn || !checkOut || checkOut <= checkIn) {
@@ -73,68 +64,16 @@ export default function BookingSummary({
     return () => clearTimeout(timer);
   }, [runAvailabilityCheck]);
 
-  async function handleReserve(e: FormEvent) {
+  function handleReserve(e: FormEvent) {
     e.preventDefault();
-    if (!user) {
-      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
     if (!availability?.available) return;
-    setReserveError(null);
-    setReserving(true);
-    try {
-      const created = await createBooking({
-        apartmentId,
-        checkIn,
-        checkOut,
-        numberOfGuests: guests,
-      });
-      setConfirmedBooking({ reference: created.bookingReference, id: created.id });
-    } catch (err) {
-      setReserveError(
-        err instanceof Error ? err.message : "Could not create booking.",
-      );
-    } finally {
-      setReserving(false);
-    }
-  }
-
-  if (confirmedBooking) {
-    return (
-      <div className="bg-white rounded-2xl border border-charcoal/8 shadow-sm p-6 text-center">
-        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-forest-green/10 mx-auto mb-4">
-          <CalendarDays size={24} className="text-forest-green" />
-        </div>
-        <h3 className="font-display text-lg font-semibold text-forest-green mb-1">
-          Booking request received!
-        </h3>
-        <p className="mt-1 text-xs font-medium text-charcoal/50 mb-1">
-          Reference:{" "}
-          <span className="text-forest-green font-semibold">
-            {confirmedBooking.reference}
-          </span>
-        </p>
-        <p className="text-sm text-charcoal/60 mb-5 mt-2">
-          Your reservation is pending. Complete payment to confirm your stay.
-        </p>
-        <div className="flex flex-col gap-2">
-          <Button
-            variant="primary"
-            fullWidth
-            onClick={() => router.push(`/account/bookings/${confirmedBooking.id}`)}
-          >
-            View My Booking
-          </Button>
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={() => router.push("/account/bookings")}
-          >
-            All My Bookings
-          </Button>
-        </div>
-      </div>
-    );
+    const query = new URLSearchParams({
+      apartmentId,
+      checkIn,
+      checkOut,
+      numberOfGuests: String(guests),
+    });
+    router.push(`/bookings/checkout?${query.toString()}`);
   }
 
   const pricing = availability?.pricing;
@@ -288,19 +227,11 @@ export default function BookingSummary({
           </div>
         )}
 
-        {reserveError && (
-          <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-700">
-            <AlertCircle size={15} className="shrink-0 mt-0.5" />
-            {reserveError}
-          </div>
-        )}
-
         <Button
           type="submit"
           variant="primary"
           fullWidth
           size="lg"
-          loading={reserving}
           disabled={
             !checkIn ||
             !checkOut ||
@@ -308,20 +239,17 @@ export default function BookingSummary({
             (availability !== null && !availability.available)
           }
         >
-          {!user
-            ? "Sign In to Reserve"
-            : availability?.available
-              ? "Reserve Apartment"
-              : checkIn && checkOut
-                ? "Check Availability"
-                : "Select Dates to Book"}
+          {availability?.available
+            ? "Continue to Guest Details"
+            : checkIn && checkOut
+              ? "Check Availability"
+              : "Select Dates to Book"}
         </Button>
       </form>
 
       <p className="text-center text-xs text-charcoal/40 mt-4">
-        {user
-          ? "You won't be charged yet — payment is completed in the next step."
-          : "Sign in to reserve. No payment required today."}
+        No account needed — you&apos;ll enter your details on the next step.
+        You won&apos;t be charged until payment is complete.
       </p>
     </div>
   );

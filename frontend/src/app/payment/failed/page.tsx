@@ -22,11 +22,11 @@ export default function PaymentFailedPage() {
 
         <div className="flex flex-col gap-3">
           <Link
-            href="/account/bookings"
+            href="/bookings/manage"
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
           >
             <CalendarDays size={15} />
-            My Bookings — Try Again
+            Find My Booking — Try Again
           </Link>
 
           <Link

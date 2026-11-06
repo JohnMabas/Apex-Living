@@ -12,7 +12,12 @@ import {
   CalendarDays,
   RefreshCw,
 } from "lucide-react";
-import { verifyPayment } from "@/services/paymentService";
+import {
+  downloadGuestReceipt,
+  verifyGuestPayment,
+  verifyPayment,
+} from "@/services/paymentService";
+import { getPaymentToken } from "@/lib/guestBooking";
 import type { Payment } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -22,21 +27,53 @@ import type { Payment } from "@/types";
 function PaymentSuccessInner() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("reference") ?? "";
+  const queryToken = searchParams.get("token") ?? "";
+  const guestHint = searchParams.get("guest") === "1";
 
+  const [storedToken, setStoredToken] = useState("");
+  const [storageChecked, setStorageChecked] = useState(false);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const token = queryToken || storedToken;
+  const isGuest = guestHint || Boolean(token);
 
   useEffect(() => {
+    if (!reference) {
+      setStorageChecked(true);
+      return;
+    }
+    setStoredToken(getPaymentToken(reference) ?? "");
+    setStorageChecked(true);
+  }, [reference]);
+
+  useEffect(() => {
+    if (!storageChecked) return;
+
     if (!reference) {
       setError("No payment reference found in URL.");
       setLoading(false);
       return;
     }
 
+    if (isGuest && !token) {
+      setError(
+        "Your secure booking link is missing. Open the link from your confirmation email to view this booking.",
+      );
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
-    verifyPayment(reference)
+    const verification = isGuest
+      ? verifyGuestPayment(reference, token)
+      : verifyPayment(reference);
+
+    verification
       .then((p) => {
         if (!cancelled) setPayment(p);
       })
@@ -53,7 +90,33 @@ function PaymentSuccessInner() {
     return () => {
       cancelled = true;
     };
-  }, [reference]);
+  }, [reference, token, isGuest, storageChecked]);
+
+  async function handleDownloadReceipt() {
+    if (!payment) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const blob = await downloadGuestReceipt(
+        payment.paymentReference,
+        token,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Nestora-Receipt-${payment.booking?.bookingReference ?? payment.paymentReference}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(
+        err instanceof Error ? err.message : "Could not download your receipt.",
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -76,10 +139,10 @@ function PaymentSuccessInner() {
           </h1>
           <p className="text-sm text-charcoal/60 mb-6">{error}</p>
           <Link
-            href="/account/bookings"
+            href={isGuest ? "/bookings/manage" : "/account/bookings"}
             className="inline-flex items-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
           >
-            My Bookings
+            {isGuest ? "Find My Booking" : "My Bookings"}
           </Link>
         </div>
       </div>
@@ -87,7 +150,17 @@ function PaymentSuccessInner() {
   }
 
   const status = payment?.status ?? "FAILED";
-  const bookingId = payment?.booking?.bookingReference;
+  const bookingReference = payment?.booking?.bookingReference;
+  const accountBookingUrl = bookingReference
+    ? `/account/bookings?ref=${encodeURIComponent(bookingReference)}`
+    : "/account/bookings";
+  const guestBookingUrl =
+    bookingReference && token
+      ? `/bookings/manage/${encodeURIComponent(
+          bookingReference,
+        )}?token=${encodeURIComponent(token)}`
+      : "/bookings/manage";
+  const bookingUrl = isGuest ? guestBookingUrl : accountBookingUrl;
 
   // ---------- SUCCESS ----------
   if (status === "SUCCESS") {
@@ -113,25 +186,47 @@ function PaymentSuccessInner() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
-            {bookingId && (
-              <Link
-                href={`/account/bookings?ref=${encodeURIComponent(bookingId)}`}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
-              >
-                <CalendarDays size={15} />
-                View Booking
-              </Link>
-            )}
-            {payment && (
-              <Link
-                href={`/account/payments/${encodeURIComponent(payment.paymentReference)}`}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
-              >
-                <ReceiptText size={15} />
-                View Receipt
-              </Link>
-            )}
+            <Link
+              href={bookingUrl}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
+            >
+              <CalendarDays size={15} />
+              View Booking
+            </Link>
+            {payment &&
+              (isGuest ? (
+                <button
+                  type="button"
+                  onClick={handleDownloadReceipt}
+                  disabled={downloading}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors disabled:opacity-50"
+                >
+                  {downloading ? (
+                    <RefreshCw size={15} className="animate-spin" />
+                  ) : (
+                    <ReceiptText size={15} />
+                  )}
+                  {downloading ? "Preparing…" : "Download Receipt"}
+                </button>
+              ) : (
+                <Link
+                  href={`/account/payments/${encodeURIComponent(payment.paymentReference)}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest-green/20 px-5 py-2.5 text-sm font-medium text-forest-green hover:bg-forest-green/5 transition-colors"
+                >
+                  <ReceiptText size={15} />
+                  View Receipt
+                </Link>
+              ))}
           </div>
+          {downloadError && (
+            <p className="mt-4 text-xs text-red-600">{downloadError}</p>
+          )}
+          {isGuest && (
+            <p className="mt-5 text-xs text-charcoal/40">
+              A PDF receipt is also attached to your confirmation email. Keep
+              your secure booking link safe.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -154,11 +249,11 @@ function PaymentSuccessInner() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/account/bookings"
+              href={bookingUrl}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
             >
               <CalendarDays size={15} />
-              My Bookings
+              {isGuest ? "View Booking" : "My Bookings"}
             </Link>
             <button
               onClick={() => window.location.reload()}
@@ -190,7 +285,7 @@ function PaymentSuccessInner() {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
           <Link
-            href="/account/bookings"
+            href={bookingUrl}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-green px-5 py-2.5 text-sm font-medium text-warm-ivory hover:bg-forest-green/90 transition-colors"
           >
             Try Again
