@@ -113,32 +113,41 @@ npm run build
 npm run test:health
 ```
 
-## Database configuration
+## Aiven PostgreSQL configuration
 
-Prisma reads `DATABASE_URL` from `backend/.env`. Do not add a real connection string to version control.
+Nestora uses PostgreSQL through Prisma. The database URL and Aiven CA certificate are backend-only: never use `NEXT_PUBLIC_` variables, commit `.env`, or add a certificate to this repository.
 
-For a local database:
+1. In the [Aiven Console](https://console.aiven.io/), create a PostgreSQL service and select a suitable plan.
+2. Open the service overview and obtain the host, port, database, username, and password (or use Aiven's generated Service URI).
+3. Download the service CA certificate from Aiven's connection information and save it locally, for example `backend/certs/ca.pem`. This directory is ignored by Git.
+4. Copy `backend/.env.example` to `backend/.env`, then configure:
 
 ```env
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/nestora?schema=public
+DATABASE_URL="postgresql://USERNAME:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
+DATABASE_CA_CERT_PATH=./certs/ca.pem
 ```
 
-For Aiven production PostgreSQL, use the connection string supplied by Aiven with `sslmode=verify-full`.
+In production, Nestora upgrades the configured URL to `sslmode=verify-full` and passes the CA path as `sslrootcert`; both values are required. Certificate verification is never disabled. Local development may use a separate local PostgreSQL URL and omit `DATABASE_CA_CERT_PATH`.
 
-After setting a valid connection string:
+After setting a valid connection string and CA certificate:
 
 ```bash
 cd backend
 npm run prisma:generate
 npm run db:test
+npm run test:health
 ```
 
 Migration commands:
 
 ```bash
-npm run prisma:migrate   # development: creates/applies a migration
-npm run prisma:deploy    # applies existing migrations in deployment
+npm run prisma:migrate   # local development: creates/applies a migration
+npm run prisma:deploy    # production: applies committed migrations only
 ```
+
+Do not use `prisma db push` as a substitute for migrations, and never reset a production database. Configure `DATABASE_URL` and `DATABASE_CA_CERT_PATH` as protected backend environment variables in the backend hosting platform before running `npm run prisma:deploy`.
+
+`GET /api/v1/health` returns API status, database status, environment, and a timestamp. It returns HTTP 503 without revealing connection details when PostgreSQL is unavailable.
 
 ## Environment variables
 
@@ -156,6 +165,7 @@ npm run prisma:deploy    # applies existing migrations in deployment
 | `NODE_ENV` | `development`, `test`, or `production` |
 | `PORT` | API server port |
 | `DATABASE_URL` | PostgreSQL/Aiven connection string; never commit it |
+| `DATABASE_CA_CERT_PATH` | Filesystem path to Aiven's CA certificate; required for verified production TLS |
 | `FRONTEND_URL` | Single permitted frontend CORS origin |
 | `JWT_SECRET` | Reserved for the authentication phase |
 | `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` | Reserved for the payment phase |
