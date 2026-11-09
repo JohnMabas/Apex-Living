@@ -10,6 +10,12 @@ import {
 } from "react";
 import type { AuthUser } from "@/types";
 import * as authService from "@/services/authService";
+import {
+  signOutSupabase,
+  syncSupabaseAccount,
+} from "@/services/supabaseAuth";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   LoginPayload,
   RegisterPayload,
@@ -48,12 +54,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount: try to restore the session from the HTTP-only cookie
+  // On mount: prefer a verified Supabase session, then fall back to the
+  // legacy HTTP-only Nestora cookie used by hosts and admins.
   useEffect(() => {
-    authService
-      .getMe()
-      .then(setUser)
-      .finally(() => setLoading(false));
+    let active = true;
+
+    async function hydrate() {
+      try {
+        if (isSupabaseConfigured()) {
+          const supabase = getSupabaseBrowserClient();
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (session) {
+            const synced = await syncSupabaseAccount();
+            if (active) setUser(synced);
+            return;
+          }
+        }
+
+        const legacyUser = await authService.getMe();
+        if (active) setUser(legacyUser);
+      } catch {
+        const legacyUser = await authService.getMe().catch(() => null);
+        if (active) setUser(legacyUser);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void hydrate();
+
+    const subscription = isSupabaseConfigured()
+      ? getSupabaseBrowserClient().auth.onAuthStateChange((event) => {
+          if (event === "SIGNED_OUT") {
+            void authService.getMe().then((legacyUser) => {
+              if (active) setUser(legacyUser);
+            });
+          }
+        }).data.subscription
+      : null;
+
+    return () => {
+      active = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const loginUser = useCallback(async (payload: LoginPayload): Promise<AuthUser> => {
@@ -72,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logoutUser = useCallback(async (): Promise<void> => {
-    await authService.logout();
+    await Promise.allSettled([signOutSupabase(), authService.logout()]);
     setUser(null);
   }, []);
 

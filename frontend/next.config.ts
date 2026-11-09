@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
         hostname: "res.cloudinary.com",
       },
       {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.googleusercontent.com",
+      },
+      {
         protocol: apiOrigin.protocol.replace(":", "") as "http" | "https",
         hostname: apiOrigin.hostname,
         port: apiOrigin.port,

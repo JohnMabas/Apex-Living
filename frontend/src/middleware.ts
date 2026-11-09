@@ -1,44 +1,77 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { updateSupabaseSession } from "@/lib/supabase/middleware";
 
-// ---------------------------------------------------------------------------
-// Protected routes — unauthenticated users are redirected to /login
-// ---------------------------------------------------------------------------
+// Customer routes accept either a Supabase session or the legacy Nestora cookie.
+const CUSTOMER_PROTECTED_PREFIXES = ["/account"];
 
-const PROTECTED_PREFIXES = ["/account", "/dashboard", "/host", "/admin"];
+// Host/admin routes must continue to use the backend-issued Nestora JWT cookie.
+const LEGACY_PROTECTED_PREFIXES = ["/dashboard", "/host", "/admin"];
 
-// Routes that logged-in users shouldn't need to visit
 const AUTH_ONLY_ROUTES = ["/login", "/register"];
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+function redirectWithCookies(
+  request: NextRequest,
+  path: string,
+  searchParams: Record<string, string>,
+  sessionResponse: NextResponse,
+): NextResponse {
+  const url = new URL(path, request.url);
+  Object.entries(searchParams).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
 
-  // Check if the route needs authentication
-  const isProtected = PROTECTED_PREFIXES.some((prefix) =>
+  const redirect = NextResponse.redirect(url);
+  sessionResponse.cookies.getAll().forEach((cookie) => {
+    redirect.cookies.set(cookie);
+  });
+  return redirect;
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
+  // OAuth callback handles its own code exchange and cookie writes.
+  if (pathname.startsWith("/auth/")) {
+    return NextResponse.next();
+  }
+
+  const { response, hasUser } = await updateSupabaseSession(request);
+
+  const legacyCookie = request.cookies.get("nestora_token");
+  const hasLegacySession = Boolean(legacyCookie?.value);
+
+  const isCustomerProtected = CUSTOMER_PROTECTED_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix),
+  );
+  const isLegacyProtected = LEGACY_PROTECTED_PREFIXES.some((prefix) =>
     pathname.startsWith(prefix),
   );
 
-  // The HTTP-only auth cookie set by the backend
-  const authCookie = request.cookies.get("nestora_token");
-  const isAuthenticated = Boolean(authCookie?.value);
-
-  if (isProtected && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+  if (isCustomerProtected && !hasUser && !hasLegacySession) {
+    return redirectWithCookies(
+      request,
+      "/login",
+      { redirect: `${pathname}${search}` },
+      response,
+    );
   }
 
-  // Optional: redirect already-logged-in users away from login/register
-  // (useful UX, but not a security requirement)
-  if (AUTH_ONLY_ROUTES.includes(pathname) && isAuthenticated) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (isLegacyProtected && !hasLegacySession) {
+    return redirectWithCookies(
+      request,
+      "/login",
+      { redirect: `${pathname}${search}` },
+      response,
+    );
   }
 
-  return NextResponse.next();
+  if (AUTH_ONLY_ROUTES.includes(pathname) && (hasUser || hasLegacySession)) {
+    return redirectWithCookies(request, "/account", {}, response);
+  }
+
+  return response;
 }
 
 export const config = {
-  // Run on all routes except Next.js internals and static files
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|public/).*)"],
 };

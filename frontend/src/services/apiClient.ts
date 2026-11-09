@@ -14,11 +14,29 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+function isCustomerApiPath(path: string): boolean {
+  return !path.startsWith("/host") && !path.startsWith("/admin");
+}
+
+async function withCustomerAuth(
+  path: string,
+  headers: Record<string, string>,
+): Promise<Record<string, string>> {
+  if (!isCustomerApiPath(path) || headers.Authorization) return headers;
+  if (typeof window === "undefined") return headers;
+
+  const { getSupabaseAccessToken } = await import("@/lib/supabase/client");
+  const token = await getSupabaseAccessToken();
+  if (!token) return headers;
+
+  return { ...headers, Authorization: `Bearer ${token}` };
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const headers: Record<string, string> = { ...options.headers };
+  const headers = await withCustomerAuth(path, { ...options.headers });
   let body: BodyInit | undefined;
 
   if (options.formData) {
@@ -62,9 +80,10 @@ export async function apiFetchBlob(
   path: string,
   options: Omit<RequestOptions, "body"> = {},
 ): Promise<Blob> {
+  const headers = await withCustomerAuth(path, { ...options.headers });
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
-    headers: options.headers,
+    headers,
     credentials: "include",
     signal: options.signal,
   });
