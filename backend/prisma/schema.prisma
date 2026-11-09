@@ -128,9 +128,18 @@ enum AuditAction {
 model User {
   id           String  @id @default(cuid())
   fullName     String
+  firstName    String?
+  lastName     String?
   email        String? @unique
   phone        String? @unique
-  passwordHash String
+  country      String?
+  avatarUrl    String?
+  passwordHash String?
+
+  // Stable identity for customers who sign in with Supabase (Google OAuth).
+  // Never trust this value from the browser — it is set by the backend after
+  // verifying the Supabase access token.
+  supabaseUserId String? @unique
 
   role            Role    @default(CUSTOMER)
   isEmailVerified Boolean @default(false)

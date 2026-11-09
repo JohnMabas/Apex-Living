@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
-import type { Role } from "@prisma/client";
+import type { Role, User } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { AppError } from "../middleware/errorHandler.js";
@@ -21,11 +21,17 @@ import type {
 export interface SafeUser {
   id: string;
   fullName: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
+  country: string | null;
+  avatarUrl: string | null;
   role: Role;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  hasPassword: boolean;
+  isGoogleLinked: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,25 +49,21 @@ const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRES_MINUTES = 60; // 1 hour
 
 /** Strip the password hash and reset fields before returning to client. */
-function toSafeUser(user: {
-  id: string;
-  fullName: string;
-  email: string | null;
-  phone: string | null;
-  role: Role;
-  isEmailVerified: boolean;
-  isPhoneVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}): SafeUser {
+export function toSafeUser(user: User): SafeUser {
   return {
     id: user.id,
     fullName: user.fullName,
+    firstName: user.firstName,
+    lastName: user.lastName,
     email: user.email,
     phone: user.phone,
+    country: user.country,
+    avatarUrl: user.avatarUrl,
     role: user.role,
     isEmailVerified: user.isEmailVerified,
     isPhoneVerified: user.isPhoneVerified,
+    hasPassword: Boolean(user.passwordHash),
+    isGoogleLinked: Boolean(user.supabaseUserId),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
@@ -117,10 +119,14 @@ export async function registerUser(input: RegisterInput): Promise<AuthPayload> {
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const nameParts = fullName.trim().split(/\s+/);
 
   const user = await prisma.user.create({
     data: {
       fullName,
+      firstName: nameParts[0] ?? null,
+      lastName:
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : null,
       email: email ?? null,
       phone: phone ?? null,
       passwordHash,
@@ -144,7 +150,7 @@ export async function loginUser(input: LoginInput): Promise<AuthPayload> {
   // Use a generic error to avoid leaking whether the account exists
   const INVALID_CREDENTIALS = new AppError("Invalid email/phone or password.", 401);
 
-  if (!user) throw INVALID_CREDENTIALS;
+  if (!user || !user.passwordHash) throw INVALID_CREDENTIALS;
 
   const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
   if (!passwordMatches) throw INVALID_CREDENTIALS;
@@ -250,6 +256,18 @@ export async function updateProfile(
   userId: string,
   input: UpdateProfileInput,
 ): Promise<SafeUser> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError("User not found.", 404);
+
+  // Google/Supabase identities own the verified email address. Customers may
+  // not change it from the Nestora profile form.
+  if (input.email && user.supabaseUserId && input.email !== user.email) {
+    throw new AppError(
+      "Your email address is managed by your Google account and cannot be changed here.",
+      400,
+    );
+  }
+
   // Check for duplicate email if being updated
   if (input.email) {
     const existing = await prisma.user.findFirst({
@@ -276,12 +294,25 @@ export async function updateProfile(
     }
   }
 
+  const nameParts = input.fullName
+    ? input.fullName.trim().split(/\s+/)
+    : null;
+  const firstName = nameParts?.[0] ?? null;
+  const lastName = nameParts && nameParts.length > 1
+    ? nameParts.slice(1).join(" ")
+    : null;
+
   const updated = await prisma.user.update({
     where: { id: userId },
     data: {
-      ...(input.fullName && { fullName: input.fullName }),
+      ...(input.fullName && {
+        fullName: input.fullName,
+        firstName,
+        lastName,
+      }),
       ...(input.email && { email: input.email }),
       ...(input.phone && { phone: input.phone }),
+      ...(input.country !== undefined && { country: input.country || null }),
     },
   });
 
@@ -298,6 +329,13 @@ export async function changePassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError("User not found.", 404);
+
+  if (!user.passwordHash) {
+    throw new AppError(
+      "This account signs in with Google. Password changes are not available.",
+      400,
+    );
+  }
 
   const currentMatches = await bcrypt.compare(
     input.currentPassword,

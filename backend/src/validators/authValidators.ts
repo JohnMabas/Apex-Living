@@ -105,11 +105,23 @@ export const updateProfileSchema = z
     fullName: fullNameField.optional(),
     email: emailField.optional(),
     phone: phoneField.optional(),
+    country: z
+      .string()
+      .trim()
+      .max(80, "Country is too long.")
+      .optional(),
   })
-  .refine((data) => data.fullName || data.email || data.phone, {
-    message: "At least one field must be provided.",
-    path: ["fullName"],
-  });
+  .refine(
+    (data) =>
+      data.fullName !== undefined ||
+      data.email !== undefined ||
+      data.phone !== undefined ||
+      data.country !== undefined,
+    {
+      message: "At least one field must be provided.",
+      path: ["fullName"],
+    },
+  );
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 

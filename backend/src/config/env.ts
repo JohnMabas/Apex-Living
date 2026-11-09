@@ -30,6 +30,11 @@ const envSchema = z.object({
   PAYSTACK_BASE_URL: z.string().url().default("https://api.paystack.co"),
   PAYSTACK_CALLBACK_URL: z.string().url().optional(),
 
+  // Supabase Auth (customer Google sign-in). Publishable key is safe for
+  // server-side token verification requests; never use a service-role key here.
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1).optional(),
+
   // Transactional email (Brevo). Credentials are intentionally backend-only.
   EMAIL_PROVIDER: z.literal("brevo").default("brevo"),
   EMAIL_PROVIDER_API_KEY: z.string().optional(),

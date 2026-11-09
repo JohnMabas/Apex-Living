@@ -14,6 +14,7 @@
     "test:health": "tsx tests/health.test.ts",
     "test:apartments": "tsx tests/apartments.test.ts",
     "test:guest-bookings": "tsx tests/guestBooking.test.ts",
+    "test:auth": "tsx tests/supabaseAuth.test.ts",
     "seed:demo": "tsx prisma/seed-demo-apartments.ts"
   },
   "dependencies": {

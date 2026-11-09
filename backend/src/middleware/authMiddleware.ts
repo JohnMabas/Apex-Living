@@ -13,6 +13,7 @@ declare global {
     interface Request {
       userId?: string;
       userRole?: Role;
+      supabaseUserId?: string;
     }
   }
 }
