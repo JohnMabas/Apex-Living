@@ -10,7 +10,7 @@ import {
   getMyPaymentHandler,
   getReceiptHandler,
 } from "../controllers/paymentController.js";
-import { authenticate } from "../middleware/authMiddleware.js";
+import { authenticateCustomer } from "../middleware/customerAuthMiddleware.js";
 import {
   guestBookingAccessLimiter,
   guestPaymentLimiter,
@@ -19,8 +19,8 @@ import {
 export const paymentRouter = Router();
 
 // Paystack integration
-paymentRouter.post("/paystack/initialize", authenticate, initializePaymentHandler);
-paymentRouter.get("/paystack/verify/:reference", authenticate, verifyPaymentHandler);
+paymentRouter.post("/paystack/initialize", authenticateCustomer, initializePaymentHandler);
+paymentRouter.get("/paystack/verify/:reference", authenticateCustomer, verifyPaymentHandler);
 // Webhook is public — raw body captured by app.ts middleware before express.json()
 paymentRouter.post("/paystack/webhook", webhookHandler);
 
@@ -42,6 +42,6 @@ paymentRouter.get(
 );
 
 // Guest payment history — specific paths before /:reference wildcard
-paymentRouter.get("/my-payments", authenticate, listMyPaymentsHandler);
-paymentRouter.get("/:reference/receipt", authenticate, getReceiptHandler);
-paymentRouter.get("/:reference", authenticate, getMyPaymentHandler);
+paymentRouter.get("/my-payments", authenticateCustomer, listMyPaymentsHandler);
+paymentRouter.get("/:reference/receipt", authenticateCustomer, getReceiptHandler);
+paymentRouter.get("/:reference", authenticateCustomer, getMyPaymentHandler);

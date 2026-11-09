@@ -536,11 +536,64 @@ function accessTokenExpiry(checkOut?: Date): Date {
   return new Date(Math.max(minimum, afterStay));
 }
 
-/** Existing authenticated-customer booking flow (admin/host/account intact). */
+async function saveCustomerContact(
+  userId: string,
+  phone: string,
+  country: string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, phone: true, country: true },
+  });
+  if (!user) return;
+
+  const data: Prisma.UserUpdateInput = {};
+  if (phone && phone !== user.phone) {
+    const conflict = await prisma.user.findFirst({
+      where: { phone, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (!conflict) data.phone = phone;
+  }
+  if (country && country !== user.country) data.country = country;
+
+  if (Object.keys(data).length > 0) {
+    await prisma.user.update({ where: { id: userId }, data });
+  }
+}
+
+/** Authenticated customer booking flow. Identity is always the verified user. */
 export async function createBooking(
   guestId: string,
   input: CreateBookingInput,
 ) {
+  const customer = await prisma.user.findUnique({
+    where: { id: guestId },
+    select: {
+      id: true,
+      fullName: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  });
+
+  if (!customer) throw new AppError("Customer account not found.", 404);
+
+  const email = customer.email?.trim().toLowerCase();
+  if (!email) {
+    throw new AppError(
+      "A verified email address is required to create a booking.",
+      400,
+    );
+  }
+
+  const nameParts = customer.fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = customer.firstName ?? nameParts[0] ?? null;
+  const lastName =
+    customer.lastName ??
+    (nameParts.length > 1 ? nameParts.slice(1).join(" ") : null);
+
   const prepared = await prepareBooking({
     apartmentId: input.apartmentId,
     checkIn: input.checkIn,
@@ -564,6 +617,15 @@ export async function createBooking(
         guestId,
         apartmentId: input.apartmentId,
         status: BookingStatus.PENDING,
+        guestFirstName: firstName,
+        guestLastName: lastName,
+        guestEmail: email,
+        guestPhone: input.phone,
+        guestCountry: input.country,
+        specialRequests: input.specialRequests ?? null,
+        arrivalTime: input.arrivalTime ?? null,
+        additionalNotes: input.additionalNotes ?? null,
+        termsAcceptedAt: new Date(),
         checkIn: input.checkIn,
         checkOut: input.checkOut,
         numberOfGuests: input.numberOfGuests,
@@ -583,13 +645,19 @@ export async function createBooking(
       data: {
         bookingId: created.id,
         status: BookingStatus.PENDING,
-        note: "Booking created by guest.",
+        note: "Booking created by authenticated customer.",
         changedById: guestId,
       },
     });
 
     return created;
   });
+
+  void saveCustomerContact(guestId, input.phone, input.country).catch(
+    (error: unknown) => {
+      console.error("Failed to update customer contact details:", error);
+    },
+  );
 
   const recipient = guestEmail(booking);
   if (recipient) {

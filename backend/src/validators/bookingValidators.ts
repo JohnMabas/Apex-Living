@@ -61,6 +61,11 @@ export const checkAvailabilitySchema = z
 
 export type CheckAvailabilityInput = z.infer<typeof checkAvailabilitySchema>;
 
+const optionalLongText = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? undefined : v),
+  z.string().trim().max(1000, "Text is too long.").optional(),
+);
+
 // ---------------------------------------------------------------------------
 // Create booking
 // ---------------------------------------------------------------------------
@@ -75,6 +80,34 @@ export const createBookingSchema = z
       .int("Guest count must be a whole number.")
       .min(1, "At least 1 guest is required.")
       .max(50, "Guest count is too large."),
+
+    // Contact details for the authenticated customer. Identity (name, email,
+    // customer ID, role) is always derived from the verified session.
+    phone: z
+      .string()
+      .trim()
+      .min(7, "Please enter a valid phone number.")
+      .max(25, "Phone number is too long.")
+      .regex(
+        /^\+?[0-9][0-9\s\-()]{5,23}$/,
+        "Please enter a valid phone number (digits, spaces, +, - or brackets).",
+      ),
+    country: z
+      .string()
+      .trim()
+      .min(2, "Country is required.")
+      .max(80, "Country is too long."),
+    specialRequests: optionalLongText,
+    arrivalTime: z.preprocess(
+      (v) => (v === "" || v === null || v === undefined ? undefined : v),
+      z.string().trim().max(120, "Arrival time is too long.").optional(),
+    ),
+    additionalNotes: optionalLongText,
+    acceptTerms: z.literal(true, {
+      errorMap: () => ({
+        message: "Please accept the booking and cancellation terms.",
+      }),
+    }),
   })
   .refine((data) => data.checkOut > data.checkIn, {
     message: "Check-out must be after check-in.",
@@ -114,11 +147,6 @@ const guestPhone = z
     /^\+?[0-9][0-9\s\-()]{5,23}$/,
     "Please enter a valid phone number (digits, spaces, +, - or brackets).",
   );
-
-const optionalLongText = z.preprocess(
-  (v) => (v === "" || v === null || v === undefined ? undefined : v),
-  z.string().trim().max(1000, "Text is too long.").optional(),
-);
 
 export const createGuestBookingSchema = z
   .object({

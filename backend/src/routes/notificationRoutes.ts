@@ -5,11 +5,11 @@ import {
   markAllAsReadHandler,
   markAsReadHandler,
 } from "../controllers/notificationController.js";
-import { authenticate } from "../middleware/authMiddleware.js";
+import { authenticateCustomer } from "../middleware/customerAuthMiddleware.js";
 
 export const notificationRouter = Router();
 
-notificationRouter.use(authenticate);
+notificationRouter.use(authenticateCustomer);
 
 // GET /api/v1/notifications
 notificationRouter.get("/", listNotificationsHandler);

@@ -11,7 +11,7 @@ import {
 import {
   checkAvailabilityHandler,
 } from "../controllers/availabilityController.js";
-import { authenticate } from "../middleware/authMiddleware.js";
+import { authenticateCustomer } from "../middleware/customerAuthMiddleware.js";
 import {
   guestBookingAccessLimiter,
   guestBookingCreateLimiter,
@@ -40,7 +40,7 @@ bookingRouter.post(
 );
 
 // Account bookings — require authentication
-bookingRouter.post("/", authenticate, createBookingHandler);
-bookingRouter.get("/my-bookings", authenticate, listMyBookingsHandler);
-bookingRouter.get("/:id", authenticate, getMyBookingHandler);
-bookingRouter.patch("/:id/cancel", authenticate, cancelMyBookingHandler);
+bookingRouter.post("/", authenticateCustomer, createBookingHandler);
+bookingRouter.get("/my-bookings", authenticateCustomer, listMyBookingsHandler);
+bookingRouter.get("/:id", authenticateCustomer, getMyBookingHandler);
+bookingRouter.patch("/:id/cancel", authenticateCustomer, cancelMyBookingHandler);
