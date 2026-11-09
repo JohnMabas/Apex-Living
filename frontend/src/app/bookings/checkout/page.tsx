@@ -16,20 +16,15 @@ import {
   Users,
 } from "lucide-react";
 import Button from "@/components/Button";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { useAuth } from "@/contexts/AuthContext";
 import { getPublicApartment } from "@/services/apartmentService";
-import { checkAvailability, createGuestBooking } from "@/services/bookingService";
-import { initializeGuestPayment } from "@/services/paymentService";
-import {
-  storeBookingToken,
-  storePaymentToken,
-} from "@/lib/guestBooking";
+import { checkAvailability, createBooking } from "@/services/bookingService";
+import { initializePayment } from "@/services/paymentService";
 import { formatPrice, formatShortDate, resolveMediaUrl } from "@/lib/format";
 import type { Apartment, AvailabilityResult } from "@/types";
 
-interface GuestFormState {
-  firstName: string;
-  lastName: string;
-  email: string;
+interface BookingFormState {
   phone: string;
   country: string;
   specialRequests: string;
@@ -38,12 +33,9 @@ interface GuestFormState {
   acceptTerms: boolean;
 }
 
-const initialForm: GuestFormState = {
-  firstName: "",
-  lastName: "",
-  email: "",
+const initialForm: BookingFormState = {
   phone: "",
-  country: "Nigeria",
+  country: "",
   specialRequests: "",
   arrivalTime: "",
   additionalNotes: "",
@@ -53,6 +45,7 @@ const initialForm: GuestFormState = {
 function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useAuth();
 
   const apartmentId = searchParams.get("apartmentId") ?? "";
   const checkIn = searchParams.get("checkIn") ?? "";
@@ -65,10 +58,22 @@ function CheckoutInner() {
   );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [form, setForm] = useState<GuestFormState>(initialForm);
+  const [form, setForm] = useState<BookingFormState>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  const checkoutPath = `/bookings/checkout?${searchParams.toString()}`;
+  const loginHref = `/login?redirect=${encodeURIComponent(checkoutPath)}`;
+
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      ...current,
+      phone: current.phone || user.phone || "",
+      country: current.country || user.country || "Nigeria",
+    }));
+  }, [user]);
 
   const paramsValid =
     Boolean(apartmentId) &&
@@ -125,9 +130,9 @@ function CheckoutInner() {
     };
   }, [apartmentId, checkIn, checkOut, numberOfGuests, paramsValid]);
 
-  function update<K extends keyof GuestFormState>(
+  function update<K extends keyof BookingFormState>(
     key: K,
-    value: GuestFormState[K],
+    value: BookingFormState[K],
   ) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -135,20 +140,21 @@ function CheckoutInner() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!availability?.available || submitting) return;
+    if (!user) {
+      setFormError("Please sign in with Google before booking.");
+      return;
+    }
 
     setFormError(null);
     setFieldErrors({});
     setSubmitting(true);
 
     try {
-      const result = await createGuestBooking({
+      const booking = await createBooking({
         apartmentId,
         checkIn,
         checkOut,
         numberOfGuests,
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
         phone: form.phone.trim(),
         country: form.country.trim(),
         specialRequests: form.specialRequests.trim() || undefined,
@@ -157,21 +163,11 @@ function CheckoutInner() {
         acceptTerms: form.acceptTerms,
       });
 
-      storeBookingToken(result.booking.bookingReference, result.accessToken);
-
       try {
-        const payment = await initializeGuestPayment(
-          result.booking.id,
-          result.accessToken,
-        );
-        storePaymentToken(payment.paymentReference, result.accessToken);
+        const payment = await initializePayment(booking.id);
         window.location.href = payment.authorizationUrl;
       } catch {
-        router.push(
-          `/bookings/manage/${encodeURIComponent(
-            result.booking.bookingReference,
-          )}?token=${encodeURIComponent(result.accessToken)}`,
-        );
+        router.push(`/account/bookings/${encodeURIComponent(booking.id)}`);
       }
     } catch (err) {
       const apiError = err as Error & {
@@ -203,6 +199,60 @@ function CheckoutInner() {
           >
             Browse Apartments
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-warm-ivory pt-24 flex flex-col items-center justify-center gap-3">
+        <Loader2 size={28} className="animate-spin text-forest-green" />
+        <p className="text-sm text-charcoal/60">Checking your account…</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-warm-ivory pt-24 px-4">
+        <div className="max-w-lg mx-auto bg-white rounded-2xl border border-charcoal/8 shadow-sm p-8">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-forest-green/10">
+            <Lock size={22} className="text-forest-green" />
+          </div>
+          <h1 className="font-display text-2xl font-semibold text-forest-green mb-2">
+            Sign in to complete your booking
+          </h1>
+          <p className="text-sm text-charcoal/60 mb-6">
+            For your security and to keep your reservation in your account,
+            please sign in with Google. Your selected apartment and dates will
+            be waiting when you return.
+          </p>
+
+          <GoogleSignInButton
+            next={checkoutPath}
+            onError={(message) => setFormError(message || null)}
+          />
+          {formError && (
+            <p className="mt-3 text-sm text-red-600">{formError}</p>
+          )}
+
+          <div className="mt-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-charcoal/10" />
+            <span className="text-xs text-charcoal/40">or</span>
+            <span className="h-px flex-1 bg-charcoal/10" />
+          </div>
+
+          <Link
+            href={loginHref}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-forest-green/20 px-5 py-3 text-sm font-medium text-forest-green transition-colors hover:bg-forest-green/5"
+          >
+            Sign in with email
+          </Link>
+          <p className="mt-4 text-center text-xs text-charcoal/45">
+            New to Nestora? Google sign-in creates your customer account
+            automatically.
+          </p>
         </div>
       </div>
     );
@@ -258,14 +308,14 @@ function CheckoutInner() {
 
         <div className="mb-8">
           <p className="text-xs uppercase tracking-[0.2em] text-soft-gold font-semibold mb-2">
-            Secure guest checkout
+            Secure checkout
           </p>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold text-forest-green">
             Complete your booking
           </h1>
           <p className="text-sm text-charcoal/60 mt-2">
-            No account required. We&apos;ll email your confirmation and a secure
-            link to manage your stay.
+            Signed in as {user.email ?? user.fullName}. We&apos;ll email your
+            confirmation and keep this stay in your account.
           </p>
         </div>
 
@@ -273,41 +323,23 @@ function CheckoutInner() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <section className="bg-white rounded-2xl border border-charcoal/8 shadow-sm p-6">
               <h2 className="font-display text-lg font-semibold text-forest-green mb-1">
-                Guest details
+                Your details
               </h2>
               <p className="text-xs text-charcoal/50 mb-5">
-                The lead guest receives all booking emails.
+                Your verified name and email come from your account. Add the
+                contact details your host should use.
               </p>
 
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field
-                  label="First name"
-                  id="guest-first"
-                  required
-                  value={form.firstName}
-                  onChange={(v) => update("firstName", v)}
-                  autoComplete="given-name"
-                  error={fieldErrors.firstName?.[0]}
+                <ReadOnlyField
+                  label="Full name"
+                  value={user.fullName}
+                  autoComplete="name"
                 />
-                <Field
-                  label="Last name"
-                  id="guest-last"
-                  required
-                  value={form.lastName}
-                  onChange={(v) => update("lastName", v)}
-                  autoComplete="family-name"
-                  error={fieldErrors.lastName?.[0]}
-                />
-                <Field
+                <ReadOnlyField
                   label="Email address"
-                  id="guest-email"
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(v) => update("email", v)}
+                  value={user.email ?? "Not provided"}
                   autoComplete="email"
-                  placeholder="you@example.com"
-                  error={fieldErrors.email?.[0]}
                 />
                 <Field
                   label="Phone number"
@@ -525,6 +557,31 @@ function CheckoutInner() {
           </aside>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyField({
+  label,
+  value,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  autoComplete?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-charcoal mb-1.5">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value}
+        readOnly
+        autoComplete={autoComplete}
+        className="w-full cursor-not-allowed rounded-xl border border-charcoal/10 bg-charcoal/[0.03] px-4 py-3 text-sm text-charcoal/70"
+      />
     </div>
   );
 }

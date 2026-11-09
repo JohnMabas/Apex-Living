@@ -3,6 +3,7 @@ import type {
   Booking,
   BookingListResult,
   BookingStatus,
+  CreateBookingFormData,
   GuestBookingFormData,
   GuestBookingResult,
   PaginationMeta,
@@ -61,12 +62,9 @@ export async function getApartmentBlockedDates(
 // Guest bookings
 // ---------------------------------------------------------------------------
 
-export async function createBooking(params: {
-  apartmentId: string;
-  checkIn: string;
-  checkOut: string;
-  numberOfGuests: number;
-}): Promise<Booking> {
+export async function createBooking(
+  params: CreateBookingFormData,
+): Promise<Booking> {
   const response = await apiFetch<{ data: { booking: Booking } }>(
     "/bookings",
     { method: "POST", body: params },

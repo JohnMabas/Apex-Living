@@ -304,11 +304,17 @@ export type UserRole = "CUSTOMER" | "ADMIN";
 export interface AuthUser {
   id: string;
   fullName: string;
+  firstName: string | null;
+  lastName: string | null;
   email: string | null;
   phone: string | null;
+  country: string | null;
+  avatarUrl: string | null;
   role: UserRole;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  hasPassword: boolean;
+  isGoogleLinked: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,6 +391,19 @@ export interface CookieConsent {
 // ---------------------------------------------------------------------------
 // Guest booking (no account)
 // ---------------------------------------------------------------------------
+
+export interface CreateBookingFormData {
+  apartmentId: string;
+  checkIn: string;
+  checkOut: string;
+  numberOfGuests: number;
+  phone: string;
+  country: string;
+  specialRequests?: string;
+  arrivalTime?: string;
+  additionalNotes?: string;
+  acceptTerms: boolean;
+}
 
 export interface GuestBookingFormData {
   apartmentId: string;

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Home, LogIn } from "lucide-react";
 import { Input } from "@/components/Input";
 import Button from "@/components/Button";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LoginFormData } from "@/types";
 
@@ -25,8 +26,18 @@ function validateForm(data: LoginFormData): FormErrors {
   return errors;
 }
 
-export default function LoginPage() {
+function safeRedirectPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  if (value.startsWith("/auth/")) return "/";
+  return value;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = safeRedirectPath(
+    searchParams.get("redirect") ?? searchParams.get("next"),
+  );
   const { loginUser } = useAuth();
 
   const [form, setForm] = useState<LoginFormData>({
@@ -35,7 +46,9 @@ export default function LoginPage() {
     rememberMe: false,
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(
+    searchParams.get("error"),
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -64,7 +77,7 @@ export default function LoginPage() {
         password: form.password,
         rememberMe: form.rememberMe,
       });
-      router.push("/");
+      router.push(redirectPath);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Sign in failed. Please try again.";
@@ -142,6 +155,20 @@ export default function LoginPage() {
               {apiError}
             </div>
           )}
+
+          <div className="space-y-4 mb-6">
+            <GoogleSignInButton
+              next={redirectPath}
+              onError={(message) => setApiError(message || null)}
+            />
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-charcoal/10" />
+              <span className="text-xs text-charcoal/40">
+                or sign in with email
+              </span>
+              <span className="h-px flex-1 bg-charcoal/10" />
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <Input
@@ -244,5 +271,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-warm-ivory pt-20 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-forest-green border-t-transparent" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

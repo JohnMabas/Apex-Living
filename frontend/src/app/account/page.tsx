@@ -3,6 +3,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   User,
   Mail,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/Input";
 import Button from "@/components/Button";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateProfile, changePassword } from "@/services/authService";
 
@@ -34,6 +36,7 @@ function ProfileSection() {
     fullName: user?.fullName ?? "",
     email: user?.email ?? "",
     phone: user?.phone ?? "",
+    country: user?.country ?? "",
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -46,6 +49,7 @@ function ProfileSection() {
         fullName: user.fullName,
         email: user.email ?? "",
         phone: user.phone ?? "",
+        country: user.country ?? "",
       });
     }
   }, [user]);
@@ -72,6 +76,7 @@ function ProfileSection() {
         fullName: form.fullName.trim() || undefined,
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
+        country: form.country.trim(),
       });
       updateUser(updated);
       setSuccess(true);
@@ -92,7 +97,9 @@ function ProfileSection() {
           <h2 className="font-display text-lg font-semibold text-forest-green">
             Personal Information
           </h2>
-          <p className="text-xs text-charcoal/50">Update your name, email, and phone</p>
+          <p className="text-xs text-charcoal/50">
+            Update your name, contact details and country
+          </p>
         </div>
       </div>
 
@@ -125,7 +132,12 @@ function ProfileSection() {
           placeholder="you@example.com"
           value={form.email}
           onChange={(e) => handleChange("email", e.target.value)}
-          hint="Email or phone is required — you may update both."
+          readOnly={Boolean(user?.isGoogleLinked)}
+          hint={
+            user?.isGoogleLinked
+              ? "Managed by your Google account and verified at sign-in."
+              : "Email or phone is required — you may update both."
+          }
           autoComplete="email"
         />
         <Input
@@ -135,6 +147,14 @@ function ProfileSection() {
           value={form.phone}
           onChange={(e) => handleChange("phone", e.target.value)}
           autoComplete="tel"
+        />
+        <Input
+          label="Country"
+          type="text"
+          placeholder="Nigeria"
+          value={form.country}
+          onChange={(e) => handleChange("country", e.target.value)}
+          autoComplete="country-name"
         />
 
         <Button
@@ -333,6 +353,17 @@ function ChangePasswordSection() {
 export default function AccountPage() {
   const router = useRouter();
   const { user, loading, logoutUser } = useAuth();
+  const [linkNotice, setLinkNotice] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("linked") === "1") {
+      setLinkNotice("Google account linked successfully.");
+    }
+    const error = params.get("link_error");
+    if (error) setLinkError(error);
+  }, []);
 
   // Redirect to login if not authenticated and loading is done
   useEffect(() => {
@@ -378,8 +409,18 @@ export default function AccountPage() {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-10">
-          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-forest-green text-warm-ivory font-semibold text-xl font-display shrink-0">
-            {initials}
+          <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-forest-green text-warm-ivory font-semibold text-xl font-display shrink-0 overflow-hidden">
+            {user.avatarUrl ? (
+              <Image
+                src={user.avatarUrl}
+                alt={user.fullName}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
+            ) : (
+              initials
+            )}
           </div>
           <div>
             <h1 className="font-display text-2xl font-semibold text-forest-green">
@@ -401,9 +442,26 @@ export default function AccountPage() {
               <span className="text-xs px-2 py-0.5 rounded-full bg-forest-green/10 text-forest-green font-medium">
                 {user.role === "ADMIN" ? "Administrator" : "Customer"}
               </span>
+              {user.isGoogleLinked && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-soft-gold/15 text-charcoal/70 font-medium">
+                  Google connected
+                </span>
+              )}
             </div>
           </div>
         </div>
+
+        {linkNotice && (
+          <div className="mb-6 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <CheckCircle size={15} />
+            {linkNotice}
+          </div>
+        )}
+        {linkError && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {linkError}
+          </div>
+        )}
 
         {/* Sections */}
         <div className="space-y-6">
@@ -465,7 +523,34 @@ export default function AccountPage() {
           </section>
 
           <ProfileSection />
-          <ChangePasswordSection />
+          {!user.isGoogleLinked && (
+            <section className="bg-white rounded-2xl border border-charcoal/8 p-6 lg:p-8 shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-forest-green/10">
+                  <Lock size={18} className="text-forest-green" />
+                </span>
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-forest-green">
+                    Connect Google
+                  </h2>
+                  <p className="text-xs text-charcoal/50">
+                    Link the Google account that uses this email address
+                  </p>
+                </div>
+              </div>
+              <p className="mb-4 text-sm leading-relaxed text-charcoal/60">
+                Use Google to sign in faster next time. Linking is only allowed
+                when the verified Google email matches this account.
+              </p>
+              <GoogleSignInButton
+                link
+                next="/account"
+                label="Connect Google account"
+                onError={(message) => setLinkError(message || null)}
+              />
+            </section>
+          )}
+          {user.hasPassword && <ChangePasswordSection />}
 
           {/* Sign out */}
           <section className="bg-white rounded-2xl border border-charcoal/8 p-6 lg:p-8 shadow-sm">

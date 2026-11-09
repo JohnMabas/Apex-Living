@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Menu,
@@ -143,13 +144,23 @@ export default function Navbar() {
                 >
                   {/* Avatar */}
                   <span
-                    className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold ${
+                    className={`relative flex items-center justify-center w-7 h-7 rounded-full overflow-hidden text-xs font-semibold ${
                       isTransparent
                         ? "bg-white/20 text-white"
                         : "bg-forest-green/10 text-forest-green"
                     }`}
                   >
-                    {initials}
+                    {user.avatarUrl ? (
+                      <Image
+                        src={user.avatarUrl}
+                        alt={user.fullName}
+                        fill
+                        sizes="28px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
                   </span>
                   <span className="hidden lg:inline max-w-[120px] truncate">
                     {user.fullName.split(" ")[0]}
@@ -236,17 +247,29 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              // Logged-out: public booking — no account required
-              <Link
-                href="/apartments"
-                className={`text-sm font-medium px-5 py-2 rounded-lg transition-colors duration-200 ${
-                  isTransparent
-                    ? "bg-white/15 text-white border border-white/30 hover:bg-white/25"
-                    : "bg-forest-green text-warm-ivory hover:bg-forest-green/90"
-                }`}
-              >
-                Book Now
-              </Link>
+              // Logged-out: customer Google sign-in plus public browsing
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className={`text-sm font-medium px-3 py-2 rounded-lg transition-colors duration-200 ${
+                    isTransparent
+                      ? "text-white/90 hover:text-white hover:bg-white/10"
+                      : "text-charcoal/80 hover:text-forest-green hover:bg-forest-green/5"
+                  }`}
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/apartments"
+                  className={`text-sm font-medium px-5 py-2 rounded-lg transition-colors duration-200 ${
+                    isTransparent
+                      ? "bg-white/15 text-white border border-white/30 hover:bg-white/25"
+                      : "bg-forest-green text-warm-ivory hover:bg-forest-green/90"
+                  }`}
+                >
+                  Book Now
+                </Link>
+              </div>
             )}
           </div>
 
@@ -289,8 +312,18 @@ export default function Navbar() {
                 <>
                   {/* User info */}
                   <div className="flex items-center gap-3 px-4 py-2">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-forest-green/10 text-forest-green text-xs font-semibold shrink-0">
-                      {initials}
+                    <span className="relative flex items-center justify-center w-8 h-8 rounded-full overflow-hidden bg-forest-green/10 text-forest-green text-xs font-semibold shrink-0">
+                      {user.avatarUrl ? (
+                        <Image
+                          src={user.avatarUrl}
+                          alt={user.fullName}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        initials
+                      )}
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-charcoal truncate">
@@ -364,12 +397,20 @@ export default function Navbar() {
                   </button>
                 </>
               ) : (
-                <Link
-                  href="/apartments"
-                  className="block px-4 py-3 rounded-lg text-sm font-medium bg-forest-green text-warm-ivory text-center hover:bg-forest-green/90 transition-colors"
-                >
-                  Book Now
-                </Link>
+                <>
+                  <Link
+                    href="/login"
+                    className="block px-4 py-3 rounded-lg text-sm font-medium text-charcoal hover:bg-forest-green/5 hover:text-forest-green transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/apartments"
+                    className="block px-4 py-3 rounded-lg text-sm font-medium bg-forest-green text-warm-ivory text-center hover:bg-forest-green/90 transition-colors"
+                  >
+                    Book Now
+                  </Link>
+                </>
               )}
             </div>
           </div>

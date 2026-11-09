@@ -33,6 +33,7 @@ export interface UpdateProfilePayload {
   fullName?: string;
   email?: string;
   phone?: string;
+  country?: string;
 }
 
 export interface ChangePasswordPayload {
@@ -45,7 +46,7 @@ export interface ChangePasswordPayload {
 export async function register(payload: RegisterPayload): Promise<AuthUser> {
   const body = await apiFetch<{ data: { user: AuthUser } }>("/auth/register", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
   return body.data.user;
 }
@@ -54,7 +55,7 @@ export async function register(payload: RegisterPayload): Promise<AuthUser> {
 export async function login(payload: LoginPayload): Promise<AuthUser> {
   const body = await apiFetch<{ data: { user: AuthUser } }>("/auth/login", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
   return body.data.user;
 }
@@ -80,7 +81,7 @@ export async function forgotPassword(
 ): Promise<{ message: string; devToken?: string }> {
   const body = await apiFetch<{ message: string; devToken?: string }>(
     "/auth/forgot-password",
-    { method: "POST", body: JSON.stringify(payload) },
+    { method: "POST", body: payload },
   );
   return body;
 }
@@ -91,7 +92,7 @@ export async function resetPassword(
 ): Promise<void> {
   await apiFetch("/auth/reset-password", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
 
@@ -101,7 +102,7 @@ export async function updateProfile(
 ): Promise<AuthUser> {
   const body = await apiFetch<{ data: { user: AuthUser } }>(
     "/users/profile",
-    { method: "PATCH", body: JSON.stringify(payload) },
+    { method: "PATCH", body: payload },
   );
   return body.data.user;
 }
@@ -112,6 +113,6 @@ export async function changePassword(
 ): Promise<void> {
   await apiFetch("/users/change-password", {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
