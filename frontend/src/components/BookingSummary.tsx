@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Users, Star, AlertCircle, Loader2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import Button from "@/components/Button";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
+import { useAuth } from "@/contexts/AuthContext";
 import { checkAvailability } from "@/services/bookingService";
 import type { AvailabilityResult } from "@/types";
 
@@ -24,6 +26,7 @@ export default function BookingSummary({
   reviewCount,
 }: BookingSummaryProps) {
   const router = useRouter();
+  const { user } = useAuth();
 
   const today = new Date().toISOString().split("T")[0];
   const [checkIn, setCheckIn] = useState("");
@@ -64,16 +67,17 @@ export default function BookingSummary({
     return () => clearTimeout(timer);
   }, [runAvailabilityCheck]);
 
+  const checkoutPath = `/bookings/checkout?${new URLSearchParams({
+    apartmentId,
+    checkIn,
+    checkOut,
+    numberOfGuests: String(guests),
+  }).toString()}`;
+
   function handleReserve(e: FormEvent) {
     e.preventDefault();
     if (!availability?.available) return;
-    const query = new URLSearchParams({
-      apartmentId,
-      checkIn,
-      checkOut,
-      numberOfGuests: String(guests),
-    });
-    router.push(`/bookings/checkout?${query.toString()}`);
+    router.push(checkoutPath);
   }
 
   const pricing = availability?.pricing;
@@ -227,29 +231,38 @@ export default function BookingSummary({
           </div>
         )}
 
-        <Button
-          type="submit"
-          variant="primary"
-          fullWidth
-          size="lg"
-          disabled={
-            !checkIn ||
-            !checkOut ||
-            checking ||
-            (availability !== null && !availability.available)
-          }
-        >
-          {availability?.available
-            ? "Continue to Guest Details"
-            : checkIn && checkOut
-              ? "Check Availability"
-              : "Select Dates to Book"}
-        </Button>
+        {!user && availability?.available ? (
+          <GoogleSignInButton
+            next={checkoutPath}
+            label="Continue with Google"
+            onError={setCheckError}
+          />
+        ) : (
+          <Button
+            type="submit"
+            variant="primary"
+            fullWidth
+            size="lg"
+            disabled={
+              !checkIn ||
+              !checkOut ||
+              checking ||
+              (availability !== null && !availability.available)
+            }
+          >
+            {availability?.available
+              ? "Continue to Booking"
+              : checkIn && checkOut
+                ? "Check Availability"
+                : "Select Dates to Book"}
+          </Button>
+        )}
       </form>
 
       <p className="text-center text-xs text-charcoal/40 mt-4">
-        No account needed — you&apos;ll enter your details on the next step.
-        You won&apos;t be charged until payment is complete.
+        {availability?.available && !user
+          ? "Sign in securely with Google to continue. You won't be charged until payment is complete."
+          : "You won't be charged until payment is complete."}
       </p>
     </div>
   );
