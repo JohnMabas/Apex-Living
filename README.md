@@ -77,8 +77,9 @@ The development server is available at `http://localhost:3000`.
 | `/apartments/[id]` | Apartment details — gallery, amenities, booking summary |
 | `/about` | About Us — mission, vision, values, team |
 | `/contact` | Contact — form with frontend validation, contact info |
-| `/login` | Sign in — email/phone + password, remember me |
-| `/register` | Create account — full form with password strength indicator |
+| `/login` | Customer Google sign-in plus host/admin email or phone + password |
+| `/register` | Create a customer account with Google |
+| `/auth/callback` | Supabase PKCE callback; verifies the Google session and syncs the customer |
 
 ### Frontend checks
 
@@ -157,6 +158,8 @@ Do not use `prisma db push` as a substitute for migrations, and never reset a pr
 | --- | --- |
 | `NEXT_PUBLIC_API_URL` | Public base URL for the backend API |
 | `NEXT_PUBLIC_APP_URL` | Public frontend URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL used for customer Google sign-in |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable/anon key; safe for the browser. Never use a service-role key here. |
 
 ### Backend
 
@@ -167,11 +170,54 @@ Do not use `prisma db push` as a substitute for migrations, and never reset a pr
 | `DATABASE_URL` | PostgreSQL/Aiven connection string; never commit it |
 | `DATABASE_CA_CERT_PATH` | Filesystem path to Aiven's CA certificate; required for verified production TLS |
 | `FRONTEND_URL` | Single permitted frontend CORS origin |
-| `JWT_SECRET` | Reserved for the authentication phase |
-| `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` | Reserved for the payment phase |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Reserved for image uploads |
+| `JWT_SECRET` | Signs host/admin and legacy customer sessions |
+| `SUPABASE_URL` | Supabase project URL used to verify customer access tokens |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase publishable/anon key used server-side to verify tokens |
+| `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` | Paystack payment keys |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Image upload credentials |
 
 Only `NEXT_PUBLIC_*` values may be exposed to the browser. All remaining secrets must stay server-side.
+
+## Customer authentication with Google (Supabase)
+
+Nestora customers sign in with Google through Supabase Auth. Supabase is the identity provider only; customer, booking, payment and email records remain in the Aiven PostgreSQL database through Prisma.
+
+### How it works
+
+1. The browser starts Google OAuth with Supabase and returns to `/auth/callback`.
+2. The callback exchanges the PKCE code for a Supabase session.
+3. The backend verifies the Supabase access token directly with Supabase Auth, then creates or updates the Nestora customer record keyed by `supabaseUserId`.
+4. Customer API requests send `Authorization: Bearer <supabase access token>`. Host and admin routes continue to use the HTTP-only `nestora_token` JWT cookie.
+5. If an existing Nestora account already uses the Google email, the customer must sign in to that existing account and use **Connect Google** on the account page. Accounts are never silently merged.
+
+### Supabase and Google Cloud setup
+
+1. Create a Supabase project.
+2. In Google Cloud Console, configure an OAuth consent screen and create a **Web application** OAuth client.
+3. Add the Supabase callback as an authorized redirect URI:
+   `https://<PROJECT_REF>.supabase.co/auth/v1/callback`
+4. In Supabase, open **Authentication → Providers → Google**, enable it, and paste the Google Client ID and Client Secret.
+5. In Supabase **Authentication → URL Configuration**, set the Site URL to the frontend origin and add redirect URLs:
+   - `http://localhost:3000/auth/callback`
+   - `https://<FRONTEND_DOMAIN>/auth/callback`
+6. Copy the Supabase project URL and publishable/anon key into the frontend and backend environment variables shown above.
+7. Apply the committed migration with `npm run prisma:deploy` once the Aiven database is reachable.
+8. Sign in with a real Google account to verify the complete flow. Do not claim Google sign-in is working until this test passes.
+
+The Supabase service-role key must never be placed in the frontend or backend environment used by this flow.
+
+### Authentication checks
+
+```bash
+cd backend
+npm run test:auth
+npm run test:guest-bookings
+
+cd ../frontend
+npm run typecheck
+npm run lint
+npm run build
+```
 
 ## Phase status
 
@@ -195,8 +241,8 @@ Only `NEXT_PUBLIC_*` values may be exposed to the browser. All remaining secrets
 - Apartment Details `/apartments/[id]` — image gallery with lightbox, stats, amenities, check-in times, house rules, sticky booking summary sidebar
 - About Us `/about` — hero, who we are, mission/vision, values grid, team, CTA
 - Contact `/contact` — contact info panel, validated form, success state
-- Login `/login` — split layout, show/hide password, remember me, forgot password link
-- Register `/register` — full form, password strength indicator, show/hide both password fields, terms checkbox
+- Login `/login` — Google customer sign-in plus email/phone + password for hosts and admins
+- Register `/register` — Google-only customer account creation with secure profile sync
 
 ### Components created
 
